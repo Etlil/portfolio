@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@layer base {
+  body {
+    background-color: #f0ece4;
+    background-image: url("/paper.svg");
+    background-repeat: repeat;
+    background-size: 1000px 1000px;
+    min-height: 100vh;
+  }
+
+  .paper-texture {
+    background-color: #d4edda;
+    background-image: url("/paper.svg");
+    background-repeat: repeat;
+    background-size: 500px 500px;
+  }
 }
