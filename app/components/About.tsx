@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import { useScroll, useTransform, motion } from "framer-motion";
+import { useMotionValue, motion } from "framer-motion";
 
 export default function About() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -23,11 +23,23 @@ export default function About() {
   const frameRef = useRef<HTMLDivElement>(null);
 
   const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-  const slipY = useTransform(scrollYProgress, [0, 1], [-60, 60]);
+  const slipY = useMotionValue(0);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const onScroll = () => {
+      const rect = section.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      const progress = 1 - (rect.bottom / (viewH + rect.height));
+      const clamped = Math.min(1, Math.max(0, progress));
+      slipY.set((0.5 - clamped) * 200);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [slipY]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = frameRef.current?.getBoundingClientRect();
@@ -142,6 +154,8 @@ export default function About() {
             position: "relative",
             width: "100%",
             aspectRatio: "1 / 1",
+            transform: "translateZ(0)",
+            willChange: "transform",
           }}
         >
           {/* All 4 stats in one column inside one frame */}
@@ -155,7 +169,7 @@ export default function About() {
               backgroundColor: "#d4edda",
               backgroundImage: "url('/paper.svg')",
               backgroundRepeat: "repeat",
-              backgroundSize: "500px 500px",
+              backgroundSize: "300px 300px",
               zIndex: 0,
               overflow: "hidden",
               display: "flex",
@@ -164,6 +178,7 @@ export default function About() {
             }}
           >
             <motion.div
+              layout={false}
               style={{
                 width: "100%",
                 display: "grid",
@@ -171,6 +186,7 @@ export default function About() {
                 alignContent: "center",
                 gap: "0.75rem",
                 y: slipY,
+                willChange: "transform",
               }}
             >
             {[
