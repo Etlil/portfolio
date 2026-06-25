@@ -63,11 +63,12 @@ const projects = [
 
 const CARD_W = 280;
 const CARD_H = 380;
-const STACK_OFFSET_X = 185;
-const STACK_OFFSET_Y = 18;
+const BASE_OFFSET_X = 215;
+const BASE_OFFSET_Y = 18;
 
 export default function Projects() {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollProgress = useMotionValue(0);
   const smoothProgress = useMotionValue(0);
 
@@ -109,6 +110,43 @@ export default function Projects() {
     };
   }, [scrollProgress, smoothProgress]);
 
+  const [dims, setDims] = useState({
+    offsetX: BASE_OFFSET_X,
+    offsetY: BASE_OFFSET_Y,
+    isMobile: false,
+  });
+
+  useEffect(() => {
+    const calc = (containerW: number) => {
+      const mobile = containerW < 768;
+      if (mobile) {
+        setDims({ offsetX: 0, offsetY: 28, isMobile: true });
+      } else {
+        const availableW = containerW * 0.9; // match the 5% padding on each side
+        const maxTotalW = CARD_W + BASE_OFFSET_X * (projects.length - 1);
+        const scale = Math.min(1, availableW / maxTotalW);
+        setDims({
+          offsetX: Math.floor(BASE_OFFSET_X * scale),
+          offsetY: Math.floor(BASE_OFFSET_Y * scale),
+          isMobile: false,
+        });
+      }
+    };
+
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) calc(w);
+    });
+
+    if (containerRef.current) {
+      ro.observe(containerRef.current);
+      calc(containerRef.current.offsetWidth);
+    }
+
+    return () => ro.disconnect();
+  }, []);
+
+  const { offsetX, offsetY, isMobile } = dims;
   const totalCards = projects.length;
 
   return (
@@ -118,6 +156,7 @@ export default function Projects() {
       style={{ height: `${100 + totalCards * 30}vh` }}
     >
       <div
+        ref={containerRef}
         style={{
           position: "sticky",
           top: 0,
@@ -125,8 +164,8 @@ export default function Projects() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          padding: "0 3rem",
+          justifyContent: isMobile ? "flex-start" : "center",
+          padding: isMobile ? "5rem 5% 2rem" : "0 5%",
         }}
       >
         {/* Header */}
@@ -136,11 +175,14 @@ export default function Projects() {
         </div>
 
         {/* Card stack container */}
+        <div style={{ display: "flex", justifyContent: "center", width: "100%", flex: isMobile ? 1 : "unset", alignItems: isMobile ? "flex-start" : "unset" }}>
         <div
           style={{
             position: "relative",
-            width: `${CARD_W + STACK_OFFSET_X * (totalCards - 1)}px`,
-            height: `${CARD_H + STACK_OFFSET_Y * (totalCards - 1)}px`,
+            width: isMobile ? `${CARD_W}px` : `${CARD_W + offsetX * (totalCards - 1)}px`,
+            height: isMobile
+              ? `${CARD_H + offsetY * (totalCards - 1)}px`
+              : `${CARD_H + offsetY * (totalCards - 1)}px`,
           }}
         >
           {projects.map((p, i) => (
@@ -150,8 +192,12 @@ export default function Projects() {
               index={i}
               total={totalCards}
               scrollProgress={smoothProgress}
+              offsetX={offsetX}
+              offsetY={offsetY}
+              isMobile={isMobile}
             />
           ))}
+        </div>
         </div>
       </div>
     </div>
@@ -163,20 +209,27 @@ function ProjectCard({
   index,
   total,
   scrollProgress,
+  offsetX,
+  offsetY,
+  isMobile,
 }: {
   project: (typeof projects)[0];
   index: number;
   total: number;
   scrollProgress: ReturnType<typeof useMotionValue<number>>;
+  offsetX: number;
+  offsetY: number;
+  isMobile: boolean;
 }) {
   const startAt = index / total;
   const endAt = Math.min(1, (index + 1) / total);
 
-  const xFrom = 1920;
-  const yFrom = 0;
+  const isFirstHalf = index < Math.ceil(total / 2);
+  const xFrom = isMobile ? 0 : isFirstHalf ? -1920 : 1920;
+  const yFrom = isMobile ? 1080 : 0;
 
-  const xTo = STACK_OFFSET_X * index;
-  const yTo = STACK_OFFSET_Y * index;
+  const xTo = isMobile ? 0 : offsetX * index;
+  const yTo = offsetY * index;
 
   const eased = useTransform(scrollProgress, (v) => {
     const t = Math.min(1, Math.max(0, (v - startAt) / (endAt - startAt)));
@@ -218,7 +271,7 @@ function ProjectCard({
           position: "absolute",
           top: 0,
           right: 0,
-          width: `${STACK_OFFSET_X}px`,
+          width: `${offsetX}px`,
           height: "100%",
           background: "linear-gradient(to left, rgba(0,0,0,0.18), transparent)",
           zIndex: 2,
@@ -233,9 +286,10 @@ function ProjectCard({
       <div
         style={{
           backgroundColor: "#F5C6AA",
-          backgroundImage: "url('/crumple.svg')",
+          backgroundImage: "url('/paper.svg')",
           backgroundRepeat: "repeat",
-          backgroundSize: "400px 400px",
+          backgroundSize: "300px 300px",
+          backgroundBlendMode: "multiply",
           border: "1px solid rgba(0,0,0,0.08)",
           padding: "1.25rem",
           display: "flex",
