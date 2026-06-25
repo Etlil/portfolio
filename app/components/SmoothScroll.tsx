@@ -19,11 +19,13 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
       lenis.raf(timestamp);
     }
 
+    (window as any).__lenis = lenis;
     frame.update(update, true);
 
     return () => {
       frame.update(update, false);
       lenis.destroy();
+      delete (window as any).__lenis;
     };
   }, []);
 

@@ -166,7 +166,7 @@ export default function About() {
               left: "5%",
               width: "95%",
               height: "95%",
-              backgroundColor: "#d4edda",
+              backgroundColor: "#F8E2CF",
               backgroundImage: "url('/paper.svg')",
               backgroundRepeat: "repeat",
               backgroundSize: "300px 300px",
@@ -198,7 +198,7 @@ export default function About() {
               <div
                 key={stat.label}
                 style={{
-                  backgroundColor: "#d4edda",
+                  backgroundColor: "#F8E2CF",
                   backgroundImage: "url('/paper.svg')",
                   backgroundRepeat: "repeat",
                   backgroundSize: "500px 500px",
