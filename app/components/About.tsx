@@ -162,10 +162,10 @@ export default function About() {
           <div
             style={{
               position: "absolute",
-              top: "5%",
-              left: "5%",
-              width: "95%",
-              height: "95%",
+              top: "0%",
+              left: "0%",
+              width: "98%",
+              height: "97%",
               backgroundColor: "#F8E2CF",
               backgroundImage: "url('/paper.svg')",
               backgroundRepeat: "repeat",

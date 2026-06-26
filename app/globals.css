@@ -11,10 +11,30 @@ html {
 @layer base {
   body {
     background-color: #ebebeb;
-    background-image: url("/paper.svg");
-    background-repeat: repeat;
-    background-size: 500px 500px;
     min-height: 100vh;
+    position: relative;
+  }
+
+  body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: max(100vh, 100%);
+    min-height: 100vh;
+    background-image: 
+      url("/paper.svg"),
+      linear-gradient(rgba(255, 182, 193, 0.5) 2.5px, transparent 2.5px);
+    background-size: 500px 500px, 100% 40px;
+    background-repeat: repeat, repeat;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  body.bg-frozen::before {
+    position: fixed;
+    height: 100vh;
   }
 
   .paper-texture {

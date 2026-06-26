@@ -71,7 +71,6 @@ export default function Projects() {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollProgress = useMotionValue(0);
   const smoothProgress = useMotionValue(0);
-
   useEffect(() => {
     let rafId: number;
 
@@ -82,9 +81,16 @@ export default function Projects() {
       const scrollable = el.offsetHeight - window.innerHeight;
       const raw = Math.min(1, Math.max(0, -rect.top / scrollable));
       scrollProgress.set(raw);
+
+      // Pinned = sticky section is actively in view
+      const pinned = rect.top <= 0 && rect.bottom >= window.innerHeight;
+      if (pinned) {
+        document.body.classList.add("bg-frozen");
+      } else {
+        document.body.classList.remove("bg-frozen");
+      }
     };
 
-    // Lerp loop — smoothProgress chases scrollProgress at 6% per frame
     const lerp = () => {
       const current = smoothProgress.get();
       const target = scrollProgress.get();
@@ -93,15 +99,6 @@ export default function Projects() {
       rafId = requestAnimationFrame(lerp);
     };
     rafId = requestAnimationFrame(lerp);
-
-    const lenis = (window as any).__lenis;
-    if (lenis) {
-      lenis.on("scroll", onScroll);
-      return () => {
-        lenis.off("scroll", onScroll);
-        cancelAnimationFrame(rafId);
-      };
-    }
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
@@ -266,23 +263,24 @@ function ProjectCard({
       }}
     >
       {/* Overlay shadow — only covers right portion when a card sits on top */}
-      <motion.div
-        style={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          width: `${offsetX}px`,
-          height: "100%",
-          background: "linear-gradient(to left, rgba(0,0,0,0.18), transparent)",
-          zIndex: 2,
-          pointerEvents: "none",
-          opacity: useTransform(scrollProgress, (v) => {
-            // Only show shadow after the NEXT card has landed on top
-            const nextCardEnd = Math.min(1, (index + 2) / total);
-            return v >= nextCardEnd ? 1 : 0;
-          }),
-        }}
-      />
+      {index < total - 1 && (
+        <motion.div
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: `${offsetX}px`,
+            height: "100%",
+            background: "linear-gradient(to left, rgba(0,0,0,0.18), transparent)",
+            zIndex: 2,
+            pointerEvents: "none",
+            opacity: useTransform(scrollProgress, (v) => {
+              const nextCardEnd = Math.min(1, (index + 2) / total);
+              return v >= nextCardEnd ? 1 : 0;
+            }),
+          }}
+        />
+      )}
       <div
         style={{
           backgroundColor: "#F5C6AA",
