@@ -44,3 +44,19 @@ html {
     background-size: 500px 500px;
   }
 }
+
+/* ── GAME SLIDE TRANSITION ── */
+#main-content {
+  /* ↓ change this to control slide speed */
+  transition: transform 0.8s ease-in-out !important;
+}
+
+body.game-active #main-content {
+  transform: translateX(-100%) !important;
+  pointer-events: none !important;
+}
+
+body.game-returning #main-content {
+  transform: translateX(0%) !important;
+  pointer-events: auto !important;
+}

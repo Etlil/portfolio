@@ -16,9 +16,31 @@ const skills = [
 export default function Skills() {
   return (
     <section id="skills" className="min-h-screen flex items-center pt-20">
-      <div className="max-w-6xl mx-auto px-6">
-        <p className="text-sm uppercase tracking-widest text-gray-400 mb-3">Expertise</p>
-        <h2 className="text-4xl font-bold text-gray-900 mb-16">Skills & Technologies</h2>
+      <div className="max-w-6xl mx-auto px-6 w-full">
+
+        {/* Header with frame */}
+        <div style={{ position: "relative", display: "inline-block", marginBottom: "4rem" }}>
+          {/* Text behind frame */}
+          <div style={{ padding: "1.5rem 3rem" }}>
+            <p className="text-sm uppercase tracking-widest text-gray-400 mb-2">Expertise</p>
+            <h2 className="text-4xl font-bold text-gray-900">Skills</h2>
+          </div>
+          {/* Frame overlay */}
+          <img
+            src="/framerec.png"
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+
+        {/* Skills grid */}
         <div className="grid md:grid-cols-3 gap-8">
           {skills.map((group) => (
             <div key={group.category} className="border border-gray-200 p-8">
@@ -36,6 +58,7 @@ export default function Skills() {
             </div>
           ))}
         </div>
+
       </div>
     </section>
   );

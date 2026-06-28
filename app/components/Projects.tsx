@@ -100,6 +100,15 @@ export default function Projects() {
     };
     rafId = requestAnimationFrame(lerp);
 
+    const lenis = (window as any).__lenis;
+    if (lenis) {
+      lenis.on("scroll", onScroll);
+      return () => {
+        lenis.off("scroll", onScroll);
+        cancelAnimationFrame(rafId);
+      };
+    }
+
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
