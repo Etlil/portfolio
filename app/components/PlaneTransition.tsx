@@ -11,11 +11,52 @@ const TRAIL_CHAR = "—";
 const TRAIL_SPACING = 40;
 const MAX_TRAILS = 20;
 const TRAIL_FONT_SIZE = 24;
+const TRAIL_WIGGLE_AMPLITUDE = 6;   // ← px of vertical bob per trail dash
+const TRAIL_WIGGLE_DURATION = 1.4;  // ← base seconds per bob cycle (randomized ±30% per dash)
+
+const MANEUVER_WAVE_AMPLITUDE = 34;  // ← px of vertical bob
+const MANEUVER_WAVE_CYCLES = 3;      // ← how many up/down waves across the flight
+const MANEUVER_STEPS_PER_SCROLL = 24; // ← how many ping-pong flip-steps span the full scroll traverse (higher = faster flapping)
 
 const FLIP_COLS = 3;
 const FLIP_ROWS = 3;
 const FLIP_FRAMES = FLIP_COLS * FLIP_ROWS;
-const FLIP_FPS = 16;
+// Each sprite frame represents a fixed rotation state of the plane art.
+// FLIP_FRAME_ANGLE is the angular slice each frame covers, used to pick
+// the right bitmap frame for a given flight angle instead of animating on
+// a timer that's disconnected from where the plane actually is on the path.
+const FLIP_FRAME_ANGLE = 360 / FLIP_FRAMES;
+
+function angleToFrame(deg: number): number {
+  let a = deg % 360;
+  if (a < 0) a += 360;
+  return Math.round(a / FLIP_FRAME_ANGLE) % FLIP_FRAMES;
+}
+
+// Ping-pong flip animation for the scroll-driven flight: skip the first 3
+// (too-flat-looking) sprite frames and bounce back and forth through the
+// rest — 3,4,5,6,7,8,7,6,5,4,3,4,5... — instead of cycling through the
+// whole sheet in one direction like angleToFrame does.
+const FLIP_SKIP_FRAMES = 3;                                // ← frames to skip at the start of the sheet
+const FLIP_USABLE_COUNT = FLIP_FRAMES - FLIP_SKIP_FRAMES;  // usable frames: 3..8 (6 frames)
+const FLIP_PINGPONG_PERIOD = (FLIP_USABLE_COUNT - 1) * 2;  // one full forward+back cycle = 10 steps
+
+function pingPongFlipFrame(step: number): number {
+  let m = Math.round(step) % FLIP_PINGPONG_PERIOD;
+  if (m < 0) m += FLIP_PINGPONG_PERIOD;
+  const offset = m <= FLIP_USABLE_COUNT - 1 ? m : FLIP_PINGPONG_PERIOD - m;
+  return FLIP_SKIP_FRAMES + offset;
+}
+
+// Continuous (non-ping-pong) version for the curved click-flight: the loop
+// spins steadily in one direction, so as rotation angle increases it just
+// cycles forward through frames 3..8 repeatedly, rather than bouncing.
+function angleToRestrictedFrame(deg: number): number {
+  let a = deg % 360;
+  if (a < 0) a += 360;
+  const step = Math.round(a / (360 / FLIP_USABLE_COUNT)) % FLIP_USABLE_COUNT;
+  return FLIP_SKIP_FRAMES + step;
+}
 
 const PLANE_GAME_SIZE = 160;
 const GRAVITY = 0.4;
@@ -25,8 +66,34 @@ const WALL_GAP_PX = 160;
 const BLOCK_SIZE = 36;
 const OBSTACLE_SPEED = 0.5;
 const GAME_H = 400;
+// Max nose-up/nose-down tilt (deg) used to pick a sprite frame in-game,
+// driven by vertical velocity — same trick as the flight-loop rotation.
+const GAME_TILT_MAX_DEG = 45;
+const GAME_TILT_PER_VEL = 4;
 
-interface Trail { id: number; x: number; }
+// ── LOOP-THE-LOOP FLIGHT PATH ──────────────────────────
+// Shape is authored in a small "local" coordinate space (x right, y down).
+// At flight time it's fitted between the real click point and the real
+// destination with a rotate+scale transform, so the loop always reads
+// correctly no matter where on screen the plane was clicked.
+const FLIGHT_DURATION = 5000;               // ← total time (ms) for the loop flight (phase 1) — doubled to slow the curve
+const GAME_FRAME_SLIDE_DURATION = 3000;       // ← ms — controls ONLY the visual slide-in of the game frame
+const POST_LOOP_WAIT_MS = 300;                // ← ms to wait after the loop flight ends before flying into the game area (independent of FLIGHT_DURATION)
+const FLY_IN_DURATION = 400;                  // ← ms for the plane to fly from loop-end into the game slot (was an unbounded lerp before)
+const PATH_LP0 = { x: 0, y: 0 };              // start
+const PATH_LP1 = { x: 18, y: -50 };           // liftoff control 1
+const PATH_LP2 = { x: -2, y: -95 };           // liftoff control 2
+const PATH_LP3 = { x: 8, y: -125 };           // liftoff end / loop entry
+const PATH_LOOP_RADIUS = 58;                  // ← loop size
+const PATH_LOOP_SWEEP_DEG = -360;             // ← negative = curls left; exactly 360 = one clean rotation
+const PATH_LOCAL_END = { x: 175, y: -245 };   // where the local path ends
+const PATH_APPROACH_HANDLE = 70;              // ← how "straight" the exit from the loop is
+const PATH_APPROACH_P2_OFFSET = { x: -15, y: 10 };
+const PATH_LIFT_FRAC = 0.18;                  // ← time budget: liftoff
+const PATH_LOOP_FRAC = 0.54;                  // ← time budget: loop
+const PATH_APPROACH_FRAC = 0.28;              // ← time budget: approach (should sum to 1)
+
+interface Trail { id: number; x: number; seed: number; }
 interface Obstacle {
   id: number;
   type: "wall" | "block";
@@ -36,12 +103,116 @@ interface Obstacle {
 }
 
 type Phase = "idle" | "flipping" | "game" | "dead" | "returning" | "death";
+type Vec = { x: number; y: number };
+
+// ── PATH MATH (pure, no React) ──────────────────────────
+const v = {
+  sub: (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y }),
+  add: (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y }),
+  scale: (a: Vec, s: number): Vec => ({ x: a.x * s, y: a.y * s }),
+  len: (a: Vec) => Math.hypot(a.x, a.y),
+  normalize: (a: Vec): Vec => {
+    const l = Math.hypot(a.x, a.y) || 1;
+    return { x: a.x / l, y: a.y / l };
+  },
+  leftNormal: (d: Vec): Vec => ({ x: d.y, y: -d.x }),
+  angleOf: (a: Vec) => Math.atan2(a.y, a.x),
+};
+
+function cubicPoint(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: number): Vec {
+  const mt = 1 - t;
+  const a = mt * mt * mt, b = 3 * mt * mt * t, c = 3 * mt * t * t, d = t * t * t;
+  return { x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, y: a * p0.y + b * p1.y + c * p2.y + d * p3.y };
+}
+function cubicTangent(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: number): Vec {
+  const mt = 1 - t;
+  const a = 3 * mt * mt, b = 6 * mt * t, c = 3 * t * t;
+  return {
+    x: a * (p1.x - p0.x) + b * (p2.x - p1.x) + c * (p3.x - p2.x),
+    y: a * (p1.y - p0.y) + b * (p2.y - p1.y) + c * (p3.y - p2.y),
+  };
+}
+
+// Loop geometry, derived once from the constants above.
+const PATH_ENTRY_DIR = v.normalize(v.sub(PATH_LP3, PATH_LP2));
+const PATH_LOOP_CENTER = v.add(PATH_LP3, v.scale(v.leftNormal(PATH_ENTRY_DIR), PATH_LOOP_RADIUS));
+const PATH_THETA_ENTRY = v.angleOf(v.sub(PATH_LP3, PATH_LOOP_CENTER));
+const PATH_LOOP_SWEEP_RAD = (PATH_LOOP_SWEEP_DEG * Math.PI) / 180;
+const PATH_THETA_EXIT = PATH_THETA_ENTRY + PATH_LOOP_SWEEP_RAD;
+const PATH_TANGENT_SIGN = Math.sign(PATH_LOOP_SWEEP_RAD);
+const PATH_LOOP_EXIT: Vec = {
+  x: PATH_LOOP_CENTER.x + PATH_LOOP_RADIUS * Math.cos(PATH_THETA_EXIT),
+  y: PATH_LOOP_CENTER.y + PATH_LOOP_RADIUS * Math.sin(PATH_THETA_EXIT),
+};
+const PATH_EXIT_TANGENT = v.normalize({
+  x: -Math.sin(PATH_THETA_EXIT) * PATH_TANGENT_SIGN,
+  y: Math.cos(PATH_THETA_EXIT) * PATH_TANGENT_SIGN,
+});
+const PATH_APP_P0 = PATH_LOOP_EXIT;
+const PATH_APP_P1 = v.add(PATH_LOOP_EXIT, v.scale(PATH_EXIT_TANGENT, PATH_APPROACH_HANDLE));
+const PATH_OVERALL_DIR = v.normalize(v.sub(PATH_LOCAL_END, PATH_LP0));
+const PATH_APP_P3 = PATH_LOCAL_END;
+const PATH_APP_P2 = v.add(v.sub(PATH_LOCAL_END, v.scale(PATH_OVERALL_DIR, PATH_APPROACH_HANDLE)), PATH_APPROACH_P2_OFFSET);
+const PATH_LOOP_HALF_TURN = PATH_TANGENT_SIGN > 0 ? Math.PI / 2 : -Math.PI / 2;
+
+// Sample the local path at progress s (0..1). Returns a point plus a
+// CONTINUOUS (unwrapped) tangent angle so rotation never snaps at ±180°.
+function samplePath(s: number): { pt: Vec; angle: number } {
+  s = Math.min(1, Math.max(0, s));
+  if (s <= PATH_LIFT_FRAC) {
+    const t = s / PATH_LIFT_FRAC;
+    return {
+      pt: cubicPoint(PATH_LP0, PATH_LP1, PATH_LP2, PATH_LP3, t),
+      angle: v.angleOf(cubicTangent(PATH_LP0, PATH_LP1, PATH_LP2, PATH_LP3, t)),
+    };
+  }
+  if (s <= PATH_LIFT_FRAC + PATH_LOOP_FRAC) {
+    const t = (s - PATH_LIFT_FRAC) / PATH_LOOP_FRAC;
+    const theta = PATH_THETA_ENTRY + t * PATH_LOOP_SWEEP_RAD;
+    return {
+      pt: { x: PATH_LOOP_CENTER.x + PATH_LOOP_RADIUS * Math.cos(theta), y: PATH_LOOP_CENTER.y + PATH_LOOP_RADIUS * Math.sin(theta) },
+      angle: theta + PATH_LOOP_HALF_TURN, // continuous by construction
+    };
+  }
+  const t = (s - PATH_LIFT_FRAC - PATH_LOOP_FRAC) / PATH_APPROACH_FRAC;
+  const pt = cubicPoint(PATH_APP_P0, PATH_APP_P1, PATH_APP_P2, PATH_APP_P3, t);
+  const tanNow = v.angleOf(cubicTangent(PATH_APP_P0, PATH_APP_P1, PATH_APP_P2, PATH_APP_P3, t));
+  const tanStart = v.angleOf(cubicTangent(PATH_APP_P0, PATH_APP_P1, PATH_APP_P2, PATH_APP_P3, 0));
+  let delta = tanNow - tanStart;
+  while (delta > Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+  const loopExitAngle = PATH_THETA_EXIT + PATH_LOOP_HALF_TURN; // continuous with the loop segment above
+  return { pt, angle: loopExitAngle + delta };
+}
+
+// Fits the local path between real on-screen start/end points via a
+// similarity transform (rotate + uniform scale), preserving the loop shape.
+function buildFlightTransform(actualStart: Vec, actualEnd: Vec) {
+  const localVec = v.sub(PATH_LOCAL_END, PATH_LP0);
+  const actualVec = v.sub(actualEnd, actualStart);
+  const scaleFactor = v.len(actualVec) / (v.len(localVec) || 1);
+  const rotation = v.angleOf(actualVec) - v.angleOf(localVec);
+  const cosR = Math.cos(rotation), sinR = Math.sin(rotation);
+  return (p: Vec): Vec => {
+    const rel = v.sub(p, PATH_LP0);
+    const rx = rel.x * cosR - rel.y * sinR;
+    const ry = rel.x * sinR + rel.y * cosR;
+    return { x: actualStart.x + rx * scaleFactor, y: actualStart.y + ry * scaleFactor };
+  };
+}
+
+// Matches Lenis's default smooth-scroll easing (exponential ease-out) so the
+// plane's flight motion feels consistent with the page's scroll feel.
+function easeLenis(t: number) {
+  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
 
 export default function PlaneTransition() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const planeImgRef = useRef<HTMLImageElement>(null);
+  const planeImgRef = useRef<HTMLDivElement>(null);
 
   const [planeX, setPlaneX] = useState(-DISPLAY_SIZE);
+  const [planeYOffset, setPlaneYOffset] = useState(0);
   const [trails, setTrails] = useState<Trail[]>([]);
   const trailIdRef = useRef(0);
   const lastTrailX = useRef(-9999);
@@ -64,6 +235,7 @@ export default function PlaneTransition() {
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const [seconds, setSeconds] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
 
   // Refs — no re-render needed
   const frozenX = useRef(0);
@@ -78,9 +250,12 @@ export default function PlaneTransition() {
   const holdingRef = useRef(false);
   const tweenRafRef = useRef<number | null>(null);
   const tweenToGameRafRef = useRef<number | null>(null);
+  // Was previously reset to `false` in the component body on every render,
+  // which fought with the async rAF game loop and made physics skip
+  // frames erratically. It should only ever be set from inside the game
+  // effect / the flight-landing callback, never from render.
   const gameReadyRef = useRef(false);
-  gameReadyRef.current = false;
-  const flipIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gameStartedRef = useRef(false);
 
   // ── SCROLL ───────────────────────────────────────────
   useEffect(() => {
@@ -116,12 +291,23 @@ export default function PlaneTransition() {
       const newX = PLANE_START_X + prog * (window.innerWidth + DISPLAY_SIZE * 2);
       setPlaneX(newX);
 
+      // Ping-pong flip-book tied to progress — reverses automatically on
+      // scroll-up because it's just f(prog), and bounces 3→8→3 instead of
+      // spinning through the sheet in one direction.
+      const flipStep = prog * MANEUVER_STEPS_PER_SCROLL;
+      setFlipFrame(pingPongFlipFrame(flipStep));
+
+      // Sine "altitude" wave layered on top of the linear left-right
+      // travel — reads as looping/diving instead of a flat straight line.
+      const wave = Math.sin(prog * Math.PI * 2 * MANEUVER_WAVE_CYCLES) * MANEUVER_WAVE_AMPLITUDE;
+      setPlaneYOffset(wave);
+
       if (scrollDelta > 0) {
         if (lastTrailX.current >= newX) lastTrailX.current = newX - TRAIL_SPACING;
         const newTrails: Trail[] = [];
         let nextX = lastTrailX.current + TRAIL_SPACING;
         while (nextX <= newX - TRAIL_SPACING) {
-          newTrails.push({ id: trailIdRef.current++, x: nextX });
+          newTrails.push({ id: trailIdRef.current++, x: nextX, seed: Math.random() });
           nextX += TRAIL_SPACING;
         }
         if (newTrails.length > 0) {
@@ -155,6 +341,7 @@ export default function PlaneTransition() {
     setTweenX(rect.left);
     setTweenY(rect.top);
     setTweenScale(1);
+    setFlipFrame(0);
 
     // Show tween div BEFORE hiding plane (same render batch)
     setTweenVisible(true);
@@ -180,78 +367,92 @@ export default function PlaneTransition() {
     });
   }, [phase]);
 
-  // ── FLIP TWEEN ───────────────────────────────────────
+  // ── FLIP TWEEN (loop-the-loop flight) ─────────────────
   useEffect(() => {
     if (phase !== "flipping") return;
 
-    const startX = frozenX.current;
-    const startY = frozenY.current;
+    // Real on-screen start/end points — the CENTER of the plane, since
+    // rotation below happens around the plane's own center, not its corner.
+    const centerStart: Vec = {
+      x: frozenX.current + DISPLAY_SIZE / 2,
+      y: frozenY.current + DISPLAY_SIZE / 2,
+    };
     const targetX = window.innerWidth * 0.29 + 0;    // ← destination X offset (change the + 0)
     const targetY = window.innerHeight / 2 - DISPLAY_SIZE / 1.7 + 0; // ← destination Y offset (change the + 0)
-    const startScale = 1;
-    const targetScale = 0.8;                           // ← end scale
+    const targetScale = 0.8;                          // ← end scale
+    const centerEnd: Vec = {
+      x: targetX + (DISPLAY_SIZE * targetScale) / 2,
+      y: targetY + (DISPLAY_SIZE * targetScale) / 2,
+    };
 
-    let curX = startX;
-    let curY = startY;
-    let curScale = startScale;
-    let f = 0;
+    const toScreen = buildFlightTransform(centerStart, centerEnd);
+    const baselineAngle = samplePath(0).angle; // plane starts unrotated — measure change from here
+
     const startTime = performance.now();
-    const totalDuration = 800; // ← total tween time (ms), match with CSS slide
-    const gameFrameDuration = 1700; // ← match game frame slide duration
+    const totalDuration = FLIGHT_DURATION; // ← total loop-flight time (ms)
+    const gameFrameDuration = POST_LOOP_WAIT_MS;
 
-    // Flip frames
-    flipIntervalRef.current = setInterval(() => {
-      f = Math.min(f + 1, FLIP_FRAMES - 1);
-      setFlipFrame(f);
-    }, 1000 / FLIP_FPS);
+    let lastScreenPt = centerStart;
+    let lastScale = 1;
 
     const loop = (now: number) => {
       const rawP = Math.min(1, (now - startTime) / totalDuration);
-      const eased = rawP === 1 ? 1 : 1 - Math.pow(2, -10 * rawP);
+      const s = easeLenis(rawP); // ← overall pacing along the path — matches Lenis's smooth-scroll feel
 
-      const wantX = startX + (targetX - startX) * eased;
-      const wantY = startY + (targetY - startY) * eased;
-      const wantScale = startScale + (targetScale - startScale) * eased;
+      const { pt, angle } = samplePath(s);
+      const screenPt = toScreen(pt);
+      const curScale = 1 + (targetScale - 1) * s;
+      const rotationDeg = ((angle - baselineAngle) * 180) / Math.PI;
 
-      curX += (wantX - curX) * 0.12; // ← lerp speed 0.01=slow 0.3=fast
-      curY += (wantY - curY) * 0.12;
-      curScale += (wantScale - curScale) * 0.12;
-
-      setTweenX(curX);
-      setTweenY(curY);
+      setTweenX(screenPt.x - DISPLAY_SIZE / 2);
+      setTweenY(screenPt.y - DISPLAY_SIZE / 2);
       setTweenScale(curScale);
+      // Rotation comes from picking the matching pre-rotated sprite frame,
+      // NOT from a CSS rotate() — doing both at once is what made the
+      // flight look like a double-spin instead of a clean loop.
+      // Restricted to frames 3-8 (skipping the too-flat 0-2 frames) — see
+      // angleToRestrictedFrame above.
+      setFlipFrame(angleToRestrictedFrame(rotationDeg));
+
+      lastScreenPt = screenPt;
+      lastScale = curScale;
 
       if (rawP < 1) {
         tweenRafRef.current = requestAnimationFrame(loop);
       } else {
-        // Wait for game frame to finish sliding in, then fly into it
-        const remaining = gameFrameDuration - totalDuration;
+        // Fixed delay after the loop ends, independent of FLIGHT_DURATION
+        const remaining = Math.max(0, gameFrameDuration);
         setTimeout(() => {
           const gameAreaEl = document.getElementById("game-area");
-          if (!gameAreaEl) { setTweenVisible(false); setPhase("game"); return; }
+          if (!gameAreaEl) {
+            setTweenVisible(false);
+            setPhase("game");
+            return;
+          }
           const gameRect = gameAreaEl.getBoundingClientRect();
           const destX = gameRect.left + 50;
           const destY = gameRect.top + 150;
-        const destScale = PLANE_GAME_SIZE / DISPLAY_SIZE;
-        let tX = curX, tY = curY, tS = curScale;
-        const flyIn = () => {
-          tX += (destX - tX) * 0.1;
-          tY += (destY - tY) * 0.1;
-          tS += (destScale - tS) * 0.1;
-          setTweenX(tX);
-          setTweenY(tY);
-          setTweenScale(tS);
-          const done = Math.abs(tX - destX) < 1 && Math.abs(tY - destY) < 1;
-          if (!done) {
-            tweenToGameRafRef.current = requestAnimationFrame(flyIn);
-          } else {
-            setTweenVisible(false);
-            setPlaneReady(true);
-            gameReadyRef.current = true;
-            setPhase("game");
-          }
-        };
-        tweenToGameRafRef.current = requestAnimationFrame(flyIn);
+          const destScale = PLANE_GAME_SIZE / DISPLAY_SIZE;
+          const srcX = lastScreenPt.x - DISPLAY_SIZE / 2;
+          const srcY = lastScreenPt.y - DISPLAY_SIZE / 2;
+          const srcScale = lastScale;
+          const flyStart = performance.now();
+          const flyIn = (flyNow: number) => {
+            const ft = Math.min(1, (flyNow - flyStart) / FLY_IN_DURATION);
+            const fe = 1 - Math.pow(1 - ft, 3); // ease-out cubic — fixed, predictable duration (was an unbounded lerp)
+            setTweenX(srcX + (destX - srcX) * fe);
+            setTweenY(srcY + (destY - srcY) * fe);
+            setTweenScale(srcScale + (destScale - srcScale) * fe);
+            if (ft < 1) {
+              tweenToGameRafRef.current = requestAnimationFrame(flyIn);
+            } else {
+              setTweenVisible(false);
+              setPlaneReady(true);
+              gameReadyRef.current = true;
+              setPhase("game");
+            }
+          };
+          tweenToGameRafRef.current = requestAnimationFrame(flyIn);
         }, remaining);
       }
     };
@@ -260,6 +461,7 @@ export default function PlaneTransition() {
 
     return () => {
       if (tweenRafRef.current) cancelAnimationFrame(tweenRafRef.current);
+      if (tweenToGameRafRef.current) cancelAnimationFrame(tweenToGameRafRef.current);
     };
   }, [phase]);
 
@@ -276,9 +478,14 @@ export default function PlaneTransition() {
     setObstacles([]);
     setSeconds(0);
     setCanGoBack(false);
-    // planeReady is set by flyIn tween before phase switches to game
+    setGameStarted(false);
+    gameStartedRef.current = false;
+    // gameReadyRef / planeReady are set by the flyIn tween right before
+    // phase flips to "game" — don't touch them here.
 
-    timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    timerRef.current = setInterval(() => {
+      if (gameStartedRef.current) setSeconds((s) => s + 1);
+    }, 1000);
 
     const loop = () => {
       if (!gameReadyRef.current) {
@@ -287,12 +494,23 @@ export default function PlaneTransition() {
       }
       frameCountRef.current++;
 
+      if (!gameStartedRef.current) {
+        gameLoopRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
       if (holdingRef.current) velRef.current += THRUST;
       velRef.current += GRAVITY;
       velRef.current = Math.max(-10, Math.min(12, velRef.current));
       planeYRef.current = Math.max(0, Math.min(GAME_H - PLANE_GAME_SIZE,
         planeYRef.current + velRef.current));
       setPlaneY(planeYRef.current);
+
+      // Nose-up/nose-down tilt from vertical velocity, expressed via the
+      // same discrete sprite frame the flight loop uses — keeps the plane
+      // art consistent everywhere instead of switching rotation systems.
+      const tiltDeg = Math.max(-GAME_TILT_MAX_DEG, Math.min(GAME_TILT_MAX_DEG, -velRef.current * GAME_TILT_PER_VEL));
+      setFlipFrame(angleToFrame(tiltDeg));
 
       if (frameCountRef.current % OBSTACLE_INTERVAL === 0) {
         const type = Math.random() > 0.5 ? "wall" : "block";
@@ -331,7 +549,22 @@ export default function PlaneTransition() {
     return () => {
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
+      gameReadyRef.current = false;
     };
+  }, [phase]);
+
+  // ── WAIT FOR SPACE TO START ───────────────────────────
+  useEffect(() => {
+    if (phase !== "game") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !gameStartedRef.current) {
+        e.preventDefault();
+        gameStartedRef.current = true;
+        setGameStarted(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [phase]);
 
   // ── DEATH ────────────────────────────────────────────
@@ -373,30 +606,56 @@ export default function PlaneTransition() {
         width: "100%",
         overflow: "hidden",
       }}>
+        {/* Pencil-roughen filter for trail dashes — feTurbulence distorts the
+            glyph edges so the "—" reads as a hand-sketched pencil stroke
+            instead of a clean digital line, matching the flip.png art style. */}
+        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+          <defs>
+            <filter id="pencilTexture" x="-30%" y="-30%" width="160%" height="160%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+        </svg>
+        <style>{`
+          @keyframes planeTrailWiggle {
+            0%, 100% { transform: translateY(calc(-50% - ${TRAIL_WIGGLE_AMPLITUDE}px)); }
+            50% { transform: translateY(calc(-50% + ${TRAIL_WIGGLE_AMPLITUDE}px)); }
+          }
+        `}</style>
         {trails.map((trail) => (
           <span key={trail.id} style={{
             position: "absolute", top: "50%",
-            transform: "translateY(-50%)",
             left: trail.x, fontSize: `${TRAIL_FONT_SIZE}px`,
             color: "rgba(0,0,0,0.35)", fontWeight: "bold",
             lineHeight: 1, pointerEvents: "none", userSelect: "none",
+            // Per-trail randomized phase (negative delay) and duration so
+            // dashes bob out of sync instead of moving as one rigid strip —
+            // same "wiggle" feel as the plane's sine-wave bob.
+            animation: `planeTrailWiggle ${TRAIL_WIGGLE_DURATION * (0.7 + trail.seed * 0.6)}s ease-in-out infinite`,
+            animationDelay: `${-trail.seed * TRAIL_WIGGLE_DURATION}s`,
+            // Pencil texture: SVG turbulence roughens the stroke edges, and
+            // a couple of soft offset shadows fake uneven pencil pressure.
+            filter: "url(#pencilTexture)",
+            textShadow: "0.5px 0.5px 0 rgba(0,0,0,0.15), -0.5px 0px 0 rgba(0,0,0,0.1)",
           }}>{TRAIL_CHAR}</span>
         ))}
 
-        {/* plane.png — only shown in idle. Hidden same frame tween appears */}
+        {/* flip.png sprite — only shown in idle. Hidden same frame tween appears */}
         {phase === "idle" && (
-          <img
-            ref={planeImgRef}
-            src="/plane.png"
-            alt="plane"
+          <div
+            ref={planeImgRef as unknown as React.RefObject<HTMLDivElement>}
             onClick={handlePlaneClick}
             style={{
-              position: "absolute", top: "50%",
+              position: "absolute",
+              top: `calc(50% + ${planeYOffset}px)`,
               transform: "translateY(-50%)",
               left: planeX,
               width: DISPLAY_SIZE, height: DISPLAY_SIZE,
-              objectFit: "contain", imageRendering: "pixelated",
-              cursor: "pointer",
+              cursor: "pointer", imageRendering: "pixelated",
+              backgroundImage: "url('/flip.png')",
+              backgroundSize: `${FLIP_COLS * 100}% ${FLIP_ROWS * 100}%`,
+              backgroundPosition: `${(flipFrame % FLIP_COLS) * (100 / (FLIP_COLS - 1))}% ${Math.floor(flipFrame / FLIP_COLS) * (100 / (FLIP_ROWS - 1))}%`,
             }}
           />
         )}
@@ -424,8 +683,10 @@ export default function PlaneTransition() {
           height: DISPLAY_SIZE,
           zIndex: 9999,
           pointerEvents: "none",
+          // No CSS rotate here — rotation is baked into which sprite frame
+          // is showing (see flipCol/flipRow below), so this only scales.
           transform: `scale(${tweenScale})`,
-          transformOrigin: "top left",
+          transformOrigin: "50% 50%",
         }}>
           <div style={{
             width: "100%", height: "100%",
@@ -438,6 +699,7 @@ export default function PlaneTransition() {
         document.body
       )}
 
+
       {/* ── GAME OVERLAY — portaled to body ── */}
       {(phase === "flipping" || phase === "game" || phase === "dead") &&
        typeof document !== "undefined" && createPortal(
@@ -449,7 +711,7 @@ export default function PlaneTransition() {
         }}>
           <div style={{
             transform: `translateX(${gameFrameSlide}px)`,
-            transition: gameFrameOffscreen ? "none" : "transform 1.7s ease-in-out",
+            transition: gameFrameOffscreen ? "none" : `transform ${GAME_FRAME_SLIDE_DURATION / 1000}s ease-in-out`,
             position: "relative",
             display: "inline-block",
           }}>
@@ -494,6 +756,21 @@ export default function PlaneTransition() {
                 backgroundPosition: `${flipCol * (100 / (FLIP_COLS - 1))}% ${flipRow * (100 / (FLIP_ROWS - 1))}%`,
                 opacity: planeReady ? 1 : 0,
               }} />
+
+              {phase === "game" && planeReady && !gameStarted && (
+                <div style={{
+                  position: "absolute", inset: 0, zIndex: 5,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  pointerEvents: "none",
+                }}>
+                  <p style={{
+                    color: "#7a5c4e", fontWeight: "bold",
+                    fontSize: "0.9rem", letterSpacing: "0.1em",
+                    textTransform: "uppercase", textAlign: "center",
+                    textShadow: "1px 1px 0 rgba(255,255,255,0.6)",
+                  }}>press space<br/>to start</p>
+                </div>
+              )}
 
               {obstacles.map((obs) => (
                 <div key={obs.id} style={{ position: "absolute", inset: 0 }}>
