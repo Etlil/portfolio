@@ -47,8 +47,8 @@ html {
 
 /* ── GAME SLIDE TRANSITION ── */
 #main-content {
-  /* ↓ change this to control slide speed */
-  transition: transform 0.8s ease-in-out !important;
+  /* duration comes from JS (--main-content-duration), single source of truth */
+  transition: transform var(--main-content-duration, 3500ms) ease-in-out !important;
 }
 
 body.game-active #main-content {
