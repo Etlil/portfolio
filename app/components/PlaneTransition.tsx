@@ -59,7 +59,7 @@ const PATH_LOCAL_END = { x: 175, y: -245 };
 const PATH_APPROACH_HANDLE = 70;
 const PATH_APPROACH_P2_OFFSET = { x: -15, y: 10 };
 const TOTAL_FLIGHT_DURATION = LIFTOFF_DURATION + LOOP_DURATION + APPROACH_DURATION;
-const RETURN_FLIGHT_DURATION = 5000; // Increase this number to make it slower (e.g., 5000 = 5 seconds)
+const RETURN_FLIGHT_DURATION = 3000; // Increase this number to make it slower (e.g., 5000 = 5 seconds)
 const PATH_LIFT_FRAC = LIFTOFF_DURATION / TOTAL_FLIGHT_DURATION;     // ← time budget: liftoff (derived)
 const PATH_LOOP_FRAC = LOOP_DURATION / TOTAL_FLIGHT_DURATION;        // ← time budget: loop (derived)
 const PATH_APPROACH_FRAC = APPROACH_DURATION / TOTAL_FLIGHT_DURATION; // ← time budget: approach (derived)
@@ -375,13 +375,6 @@ export default function PlaneTransition() {
         setPlaneReady(true);
         setPhase("arrived");
         
-        // Restore scrolling and clean up classes
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
-        const lenis = (window as any).__lenis;
-        if (lenis) lenis.start();
-        document.body.classList.remove("game-returning");
-        setTrails([]);
       }
     };
 
