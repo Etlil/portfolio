@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
+
+// Phaser touches window/document at import time, so it must never be
+// imported on the server. GameCanvas itself also does a dynamic
+// `await import("phaser")` internally, but wrapping the component too
+// means Next won't even try to SSR it.
+const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 
 const DISPLAY_SIZE = 200;
 const SECTION_HEIGHT = 180;
@@ -186,12 +193,20 @@ export default function PlaneTransition() {
 
   const [gameFrameSlide, setGameFrameSlide] = useState(0);
   const [planeReady, setPlaneReady] = useState(false);
+  const [phaserReady, setPhaserReady] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
   const [gameFrameOffscreen, setGameFrameOffscreen] = useState(true);
+
+  // Measured pixel size of #game-area, passed straight into Phaser's
+  // canvas. Phaser wants concrete numbers, not the % values the div uses
+  // for its own CSS layout.
+  const [gameAreaSize, setGameAreaSize] = useState({ width: 0, height: 0 });
 
   const frozenX = useRef(0);
   const frozenY = useRef(0);
   const tweenRafRef = useRef<number | null>(null);
   const frameWrapperRef = useRef<HTMLDivElement>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
 
   // ── SCROLL ───────────────────────────────────────────
   useEffect(() => {
@@ -263,6 +278,26 @@ export default function PlaneTransition() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── MEASURE #game-area FOR PHASER ─────────────────────
+  // Only needs to run once the frame has actually arrived and settled,
+  // since that's the only time Phaser is mounted. A ResizeObserver keeps
+  // it correct across window resizes too.
+  useEffect(() => {
+    if (phase !== "arrived") return;
+    const el = gameAreaRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setGameAreaSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+    };
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase]);
+
   // ── CLICK ────────────────────────────────────────────
   const handlePlaneClick = useCallback(() => {
     if (phase !== "idle") return;
@@ -282,6 +317,7 @@ export default function PlaneTransition() {
 
     setTweenVisible(true);
     setPhase("flipping");
+    setPhaserReady(false);
 
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -567,14 +603,20 @@ export default function PlaneTransition() {
 
             <div
               id="game-area"
-              onClick={handleReturn}
+              ref={gameAreaRef}
+              onClick={phase === "arrived" ? undefined : handleReturn}
               style={{
                 position: "absolute",
-                top: "10%", left: "8%", right: "8%", bottom: "10%",
+                top: "5%", left: "3%", right: "3%", bottom: "5%",
                 overflow: "hidden", zIndex: 2,
-                cursor: phase === "arrived" ? "pointer" : "default",
+                cursor: "default",
               }}
             >
+              {/* CSS sprite plane: shown during the flight handoff, before
+                  Phaser has booted. Once Phaser mounts (phase === "arrived"
+                  && gameAreaSize is measured) this fades out and the canvas
+                  takes over — the "back" control lives inside the Phaser
+                  scene from that point on. */}
               <div style={{
                 position: "absolute", left: 50, top: 150,
                 width: PLANE_GAME_SIZE, height: PLANE_GAME_SIZE,
@@ -583,16 +625,22 @@ export default function PlaneTransition() {
                 backgroundImage: "url('/flip.png')",
                 backgroundSize: `${FLIP_COLS * 100}% ${FLIP_ROWS * 100}%`,
                 backgroundPosition: `${flipCol * (100 / (FLIP_COLS - 1))}% ${flipRow * (100 / (FLIP_ROWS - 1))}%`,
-                opacity: planeReady ? 1 : 0,
+                transform: `rotate(${tweenRotate}deg)`, 
+                opacity: planeReady && phase === "arrived" && gameAreaSize.width > 0 ? 0 : (planeReady ? 1 : 0),
+                transition: "opacity 1ms linear",
               }} />
 
-              {phase === "arrived" && (
-                <p style={{
-                  position: "absolute", bottom: 8, left: 0, right: 0,
-                  textAlign: "center", color: "#7a5c4e", fontWeight: "bold",
-                  fontSize: "0.75rem", letterSpacing: "0.1em",
-                  textTransform: "uppercase", pointerEvents: "none",
-                }}>click to go back</p>
+              {phase === "arrived" && gameAreaSize.width > 0 && (
+                <div style={{ position: "absolute", inset: 0, zIndex: 3 }}>
+                  <GameCanvas
+                    width={gameAreaSize.width}
+                    height={gameAreaSize.height}
+                    startFrame={flipFrame}
+                    onExit={handleReturn}
+                    onReady={() => setPhaserReady(true)}
+                    onStart={() => setGameStarted(true)} 
+                  />
+                </div>
               )}
             </div>
           </div>

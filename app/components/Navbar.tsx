@@ -1,7 +1,7 @@
 "use client";
 export default function Navbar() {
   return (
-    <header className="fixed top-0 w-full z-50 flex flex-col">
+    <header className="fixed top-0 w-full z-9999 flex flex-col">
       <nav className="max-w-full px-6 pt-1 pb-4 flex justify-between items-center relative z-10" style={{maxWidth:"100%", backgroundColor:"#FFDEE2"}}>
         <div className="max-w-6xl mx-auto w-full flex justify-between items-center mt-4">
           <span className="text-lg font-bold tracking-tight text-gray-900">ETLIL</span>
