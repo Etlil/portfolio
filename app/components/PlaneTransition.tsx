@@ -48,7 +48,7 @@ function angleToRestrictedFrame(deg: number): number {
   return FLIP_SKIP_FRAMES + step;
 }
 
-const PLANE_GAME_SIZE = 160;
+const PLANE_GAME_SIZE = 110;
 
 // ── LOOP-THE-LOOP FLIGHT PATH ──────────────────────────
 const LIFTOFF_DURATION = 400;         // ← ms for the liftoff curve (PATH_LP0 → PATH_LP3), independent of the loop
