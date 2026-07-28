@@ -93,7 +93,7 @@ export default function Contact() {
     <section
       id="contact"
       className="flex flex-col justify-center"
-      style={{ minHeight: "100vh", padding: "6rem 6% 2.5rem" }}
+      style={{ minHeight: "100vh", padding: "clamp(5.5rem, 10vh, 7rem) 6% 2rem" }}
     >
       {/* Torn-paper edge for the form card — a milder version of the Skills
           cards' #card-tear (shallower, finer tears). */}
@@ -131,7 +131,7 @@ export default function Contact() {
               </a>
               <div className="flex items-center gap-4">
                 <span className="uppercase tracking-wider text-xs text-gray-400 w-16">Where</span>
-                <span className="text-gray-800">Baguio City, Philippines</span>
+                <span className="text-gray-800">San Luis, Aurora</span>
               </div>
             </div>
 
@@ -179,7 +179,7 @@ export default function Contact() {
                   "url(#contact-tear) drop-shadow(0 6px 14px rgba(0,0,0,0.14)) drop-shadow(0 20px 36px rgba(0,0,0,0.2))",
               }}
             />
-            <div className="relative space-y-5" style={{ zIndex: 1 }}>
+            <div className="relative space-y-4" style={{ zIndex: 1 }}>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Name</label>
                 <div className="relative">
@@ -213,7 +213,7 @@ export default function Contact() {
                 <div className="relative">
                   <div aria-hidden className="absolute inset-0" style={fieldBacking} />
                   <textarea
-                    rows={5}
+                    rows={4}
                     required
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
@@ -253,7 +253,7 @@ export default function Contact() {
         </div>
 
         <div
-          className="mt-16 pt-6 text-center"
+          className="mt-6 pt-4 text-center"
           style={{ borderTop: "1px solid rgba(63,61,58,0.2)" }}
         >
           <button

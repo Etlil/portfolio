@@ -225,18 +225,18 @@ export default function Projects() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          justifyContent: isMobile ? "flex-start" : "center",
-          padding: isMobile ? "5rem 5% 2rem" : "0 5%",
+          justifyContent: "flex-start",
+          padding: isMobile ? "7rem 5% 2rem" : "clamp(7rem, 13vh, 8.5rem) 5% 1.5rem",
         }}
       >
-        {/* Header */}
-        <div style={{ marginBottom: "2.5rem" }}>
+        {/* Header — held below the navbar; the stack centers in the space below */}
+        <div style={{ marginBottom: "2rem" }}>
           <p className="text-sm uppercase tracking-widest text-gray-400 mb-2">Work</p>
           <h2 className="text-4xl font-bold text-gray-900">Selected Projects</h2>
         </div>
 
         {/* Card stack container */}
-        <div style={{ display: "flex", justifyContent: "center", width: "100%", flex: isMobile ? 1 : "unset", alignItems: isMobile ? "flex-start" : "unset" }}>
+        <div style={{ display: "flex", justifyContent: "center", width: "100%", flex: 1, minHeight: 0, alignItems: isMobile ? "flex-start" : "center" }}>
         <div
           style={{
             position: "relative",

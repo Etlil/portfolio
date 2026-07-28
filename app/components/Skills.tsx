@@ -309,9 +309,9 @@ export default function Skills() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          paddingTop: pinned ? 0 : "6rem",
-          paddingBottom: pinned ? 0 : "6rem",
+          justifyContent: pinned ? "flex-start" : "center",
+          paddingTop: pinned ? "clamp(7rem, 13vh, 8.5rem)" : "6rem",
+          paddingBottom: pinned ? "1.5rem" : "6rem",
         }}
       >
         {/* Header — stays put while the cards slide past */}
@@ -327,9 +327,27 @@ export default function Skills() {
         {/* Horizontal track. `transform` is set imperatively in the rAF loop,
             so it is deliberately absent here — leaving it out of the style prop
             keeps React from resetting the slide on every re-render. */}
-        {/* Vertical padding gives the cards' top/bottom shadows room to show
-            before the overflow:hidden clip (the cards are as tall as this box). */}
-        <div ref={viewportRef} style={{ position: "relative", zIndex: 1, overflow: "hidden", padding: "3rem 0" }}>
+        {/* flex:1 so the cards fill (and vertically center within) the space
+            below the pinned header, keeping the "Skills" label clear of the
+            fixed navbar during the horizontal scroll.
+            overflow-x clips the sliding track horizontally; overflow-y stays
+            visible so the cards' top/bottom shadows aren't cut off. */}
+        <div
+          ref={viewportRef}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            overflowX: "clip",
+            overflowY: "visible",
+            padding: "1.5rem 0",
+            flex: pinned ? 1 : "none",
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "flex-start",
+          }}
+        >
           <div
             ref={trackRef}
             style={{
