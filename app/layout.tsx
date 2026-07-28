@@ -3,7 +3,7 @@ import "./globals.css";
 import SmoothScroll from '@/app/components/SmoothScroll';
 
 export const metadata: Metadata = {
-  title: "Your Name | Portfolio",
+  title: "Etlil's Portfolio",
   description: "Professional portfolio",
 };
 
