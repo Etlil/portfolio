@@ -80,14 +80,14 @@ export default function About() {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="max-w-6xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-16 items-center">
+      <div className="max-w-6xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
         <div>
 
           <div>
             <p className="text-sm uppercase tracking-widest text-gray-400 mb-3">About Me</p>
 
             {/* Frame + heading side by side */}
-            <div className="flex items-center gap-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-6">
               <div
                 ref={frameRef}
                 onMouseEnter={() => setHovered(true)}
@@ -134,7 +134,7 @@ export default function About() {
               </div>
 
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 leading-tight mb-3">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-3">
                   I'm Jezreel Pimentel
                 </h1>
                 <p className="text-xl text-gray-500 font-medium">
@@ -198,10 +198,6 @@ export default function About() {
               <div
                 key={stat.label}
                 style={{
-                  backgroundColor: "#F8E2CF",
-                  backgroundImage: "url('/paper.svg')",
-                  backgroundRepeat: "repeat",
-                  backgroundSize: "500px 500px",
                   display: "flex",
                   marginLeft: "2rem",
                   flexDirection: "column",

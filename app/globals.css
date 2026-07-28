@@ -1,7 +1,28 @@
 @import "tailwindcss";
 
+/* ── OMORI FONT ── loaded from /public/font/omori_font.ttf */
+@font-face {
+  font-family: "Omori";
+  src: url("/font/omori_font.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Applied site-wide — !important so it wins over Tailwind's default font. */
+body {
+  font-family: "Omori", "Courier New", Courier, monospace !important;
+}
+
+.font-omori {
+  font-family: "Omori", "Courier New", Courier, monospace;
+}
+
 html {
   scroll-behavior: auto;
+  /* Omori is a pixel font that reads small at normal sizes — scale the whole
+     site up. Everything is rem-based, so this enlarges all text at once. */
+  font-size: 118%;
 }
 
 html.lenis, html.lenis body {

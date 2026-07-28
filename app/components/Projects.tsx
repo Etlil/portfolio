@@ -2,67 +2,124 @@
 import { useEffect, useRef, useState } from "react";
 import { useMotionValue, useTransform, motion } from "framer-motion";
 
-const projects = [
+type Project = {
+  number: string;
+  title: string;
+  description: string;
+  tech: string[];
+  image: string;
+  color: string; // sticky-note background
+  links: { label: string; url: string }[];
+};
+
+const projects: Project[] = [
   {
     number: "01",
-    title: "NLAC Student Portal",
-    description: "A full-stack student information system built for Northern Luzon Adventist College. Features enrollment management, grade tracking, and an admin dashboard.",
-    tech: ["PHP", "Laravel", "MySQL"],
-    link: "#",
-    repo: "#",
+    title: "Smart Campus Navigation with Queue & Appointment Integration",
+    description:
+      "Our college capstone — campus navigation with built-in queueing and appointment booking. A full-stack team build.",
+    tech: ["Laravel", "Livewire", "MySQL"],
+    image: "/projects/smartcamp.jpg",
+    color: "#FCEFA6",
+    links: [
+      { label: "Visit Website", url: "https://user.map.nlac.online/" },
+      {
+        label: "Documentation",
+        url: "https://drive.google.com/file/d/1PmAi8eGNeewemp0trY_9kP9trqNaCF8G/view?usp=sharing",
+      },
+    ],
   },
   {
     number: "02",
-    title: "Hospital Intern Tracker",
-    description: "An internship management system developed during OJT at Northern Luzon Adventist Hospital. Tracks daily tasks, hours rendered, and supervisor feedback.",
-    tech: ["Laravel", "JavaScript", "Tailwind CSS"],
-    link: "#",
-    repo: "#",
+    title: "Access Control Log System",
+    description:
+      "An access-control logging system for our Systems Analysis & Design course — our first fully documented R&D project.",
+    tech: ["Laravel", "Angular", "MySQL"],
+    image: "/projects/acls.jpg",
+    color: "#FBC4D0",
+    links: [
+      {
+        label: "Documentation",
+        url: "https://drive.google.com/file/d/1Xrh0uuiRRUW2Z24OIhE_9UMGkFDveorI/view?usp=drive_link",
+      },
+    ],
   },
   {
     number: "03",
-    title: "Inventory Management System",
-    description: "A web-based inventory system with real-time stock monitoring, low-stock alerts, and exportable reports for small to mid-sized businesses.",
-    tech: ["Angular", "Node.js", "PostgreSQL"],
-    link: "#",
-    repo: "#",
+    title: "Northern Luzon Adventist Hospital's Management Information System",
+    description:
+      "A real hospital MIS built during my internship — an all-in-one platform: HRIS, payroll, inventory, leave, maintenance and more.",
+    tech: ["Laravel", "Livewire", "MySQL"],
+    image: "/projects/nlah.jpg",
+    color: "#C4E8C2",
+    links: [{ label: "Visit Website", url: "https://nlaho.leuvhano.fun" }],
   },
   {
     number: "04",
-    title: "Portfolio Website",
-    description: "This portfolio — built from scratch with Next.js, Tailwind CSS, and Lenis. Features smooth scroll animations, parallax effects, and a paper texture theme.",
-    tech: ["Next.js", "TypeScript", "Framer Motion"],
-    link: "#",
-    repo: "#",
+    title: "Mobile Point of Sales System (Android)",
+    description:
+      "An offline-capable Android point-of-sale app I built for fun, adapted from my internship POS work.",
+    tech: ["Kotlin", "Java", "SQLite"],
+    image: "/projects/mpos.jpg",
+    color: "#BBD9F0",
+    links: [
+      {
+        label: "Download the App",
+        url: "https://drive.google.com/file/d/1qCOKJVIahaWr-S4-7NZNJLjD9uc2Q9A9/view?usp=sharing",
+      },
+    ],
   },
   {
     number: "05",
-    title: "Barangay Document Request",
-    description: "A community web app that allows residents to request barangay documents online, reducing foot traffic and processing time at local government offices.",
-    tech: ["PHP", "JavaScript", "MySQL"],
-    link: "#",
-    repo: "#",
+    title: "Chrono Paradox",
+    description:
+      "A 2D time-travel game for our Software Engineering course — I coded it and hand-drew every asset myself.",
+    tech: ["Phaser", "Angular"],
+    image: "/projects/chrono.jpg",
+    color: "#D9C6EE",
+    links: [
+      {
+        label: "View Screenshots",
+        url: "https://drive.google.com/drive/folders/1A39Us26wM1ock8A9AZq-fEP57Xb11l6f?usp=sharing",
+      },
+    ],
   },
   {
     number: "06",
-    title: "E-Commerce Storefront",
-    description: "A responsive online store with cart management, product filtering, and PayMongo payment integration tailored for local Philippine sellers.",
-    tech: ["React", "Node.js", "MongoDB"],
-    link: "#",
-    repo: "#",
-  },
-  {
-    number: "07",
-    title: "Class Scheduler App",
-    description: "An automated class scheduling tool that resolves conflicts, assigns rooms, and generates printable timetables for university departments.",
-    tech: ["Angular", "Laravel", "MySQL"],
-    link: "#",
-    repo: "#",
+    title: "Omori-Inspired Portfolio Website",
+    description:
+      "A portfolio site themed after my favorite game, Omori — I wanted a portfolio built around a game I love.",
+    tech: ["Next.js", "Vercel"],
+    image: "/projects/portfolio.jpg",
+    color: "#FBD0A6",
+    links: [{ label: "Visit Website", url: "https://etlils-portfolio.vercel.app/" }],
   },
 ];
 
+// Map a tech/tool name to its icon in /public/skills. Falls back to a text
+// chip when there's no matching icon (e.g. Livewire, Volt, Vercel).
+const TECH_ICON: Record<string, string> = {
+  Laravel: "laravel",
+  MySQL: "mysql",
+  Angular: "angular",
+  Kotlin: "kotlin",
+  Java: "java",
+  SQLite: "sqlite",
+  Phaser: "phaser",
+  "Next.js": "nextjs",
+  React: "react",
+  PHP: "php",
+  JavaScript: "js",
+  HTML: "html",
+  CSS: "css",
+  Python: "python",
+  MongoDB: "mongodb",
+  Git: "git",
+  GitHub: "github",
+};
+
 const CARD_W = 280;
-const CARD_H = 380;
+const CARD_H = 460;
 const BASE_OFFSET_X = 215;
 const BASE_OFFSET_Y = 18;
 
@@ -290,67 +347,109 @@ function ProjectCard({
       )}
       <div
         style={{
-          backgroundColor: "#F5C6AA",
+          backgroundColor: project.color,
           backgroundImage: "url('/paper.svg')",
           backgroundRepeat: "repeat",
           backgroundSize: "300px 300px",
           backgroundBlendMode: "multiply",
           border: "1px solid rgba(0,0,0,0.08)",
-          padding: "1.25rem",
+          padding: "1rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.6rem",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          gap: "0.5rem",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.14)",
           width: `${CARD_W}px`,
           height: `${CARD_H}px`,
           overflow: "hidden",
         }}
       >
-        <div className="flex items-start justify-between">
+        {/* Framed thumbnail with the number tag */}
+        <div style={{ position: "relative" }}>
+          <img
+            src={project.image}
+            alt={project.title}
+            draggable={false}
+            style={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+              objectFit: "cover",
+              display: "block",
+              border: "3px solid #fff",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
+            }}
+          />
           <span
             style={{
-              fontSize: "1.8rem",
-              fontWeight: "800",
-              color: "rgba(0,0,0,0.12)",
-              lineHeight: 1,
+              position: "absolute",
+              top: 8,
+              left: 8,
+              backgroundColor: "rgba(0,0,0,0.68)",
+              color: "#fff",
+              fontSize: "0.68rem",
+              fontWeight: 800,
+              letterSpacing: "0.05em",
+              padding: "1px 7px",
             }}
           >
             {project.number}
           </span>
-          <div className="flex flex-col gap-1 items-end">
-            <a
-              href={project.link}
-              className="uppercase tracking-widest text-gray-600 underline underline-offset-2 hover:text-gray-900 transition-colors"
-              style={{ fontSize: "0.55rem" }}
-            >
-              Live Demo
-            </a>
-            <a
-              href={project.repo}
-              className="uppercase tracking-widest text-gray-600 underline underline-offset-2 hover:text-gray-900 transition-colors"
-              style={{ fontSize: "0.55rem" }}
-            >
-              GitHub
-            </a>
-          </div>
         </div>
 
-        <h3 className="text-sm font-bold text-gray-900 leading-tight">{project.title}</h3>
-        <p className="text-gray-700 leading-relaxed" style={{ fontSize: "0.62rem" }}>
+        <h3
+          className="font-bold text-gray-900 leading-tight line-clamp-2"
+          style={{ fontSize: "0.98rem", marginTop: "0.15rem" }}
+        >
+          {project.title}
+        </h3>
+        <p className="text-gray-700 leading-relaxed line-clamp-2" style={{ fontSize: "0.74rem" }}>
           {project.description}
         </p>
 
-        <div className="flex flex-wrap gap-1 mt-auto">
-          {project.tech.map((t) => (
-            <span
-              key={t}
-              className="uppercase tracking-wider text-gray-600 px-1.5 py-0.5"
-              style={{ border: "1px solid rgba(0,0,0,0.15)", fontSize: "0.5rem" }}
-            >
-              {t}
-            </span>
-          ))}
+        {/* Tools used — skill icon per tech, text chip when there's no icon */}
+        <div className="flex flex-wrap items-center gap-2 mt-auto">
+          {project.tech.map((t) => {
+            const icon = TECH_ICON[t];
+            return icon ? (
+              <img
+                key={t}
+                src={`/skills/${icon}.png`}
+                alt={t}
+                title={t}
+                draggable={false}
+                style={{ width: 30, height: 30, objectFit: "contain" }}
+              />
+            ) : (
+              <span
+                key={t}
+                className="uppercase tracking-wider text-gray-700 px-1.5 py-0.5"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.22)",
+                  backgroundColor: "rgba(255,255,255,0.4)",
+                  fontSize: "0.6rem",
+                }}
+              >
+                {t}
+              </span>
+            );
+          })}
         </div>
+
+        {project.links.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {project.links.map((l) => (
+              <a
+                key={l.label}
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="uppercase tracking-widest text-gray-800 underline underline-offset-2 hover:text-black transition-colors"
+                style={{ fontSize: "0.64rem", fontWeight: 600 }}
+              >
+                {l.label} ↗
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
