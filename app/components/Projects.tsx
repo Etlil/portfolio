@@ -84,11 +84,9 @@ export default function Projects() {
 
       // Pinned = sticky section is actively in view
       const pinned = rect.top <= 0 && rect.bottom >= window.innerHeight;
-      if (pinned) {
-        document.body.classList.add("bg-frozen");
-      } else {
-        document.body.classList.remove("bg-frozen");
-      }
+      (window as any).__projectsPinned = pinned;
+      const anyPinned = (window as any).__skillsPinned || (window as any).__projectsPinned;
+      document.body.classList.toggle("bg-frozen", !!anyPinned);
     };
 
     const lerp = () => {

@@ -4,6 +4,14 @@ html {
   scroll-behavior: auto;
 }
 
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+html.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -32,17 +40,20 @@ html {
     z-index: -1;
   }
 
-  body.bg-frozen::before {
-    position: fixed;
-    height: 100vh;
-  }
-
   .paper-texture {
     background-color: #F8E2CF;
     background-image: url("/paper.svg");
     background-repeat: repeat;
     background-size: 500px 500px;
   }
+
+  body.bg-frozen::before {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+  }
+
 }
 
 /* ── GAME SLIDE TRANSITION ── */
@@ -59,4 +70,127 @@ body.game-active #main-content {
 body.game-returning #main-content {
   transform: translateX(0%) !important;
   pointer-events: auto !important;
+}
+
+/* ── SKILLS ICON BOARD ── */
+/* Card = a torn scrap of light-gray paper. The colour, texture and torn edge
+   live on a ::before backing so the card's content (heading, icons) stays
+   undistorted by the displacement filter. */
+.skill-card {
+  position: relative;
+}
+.skill-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: #edece9;
+  background-image: url("/paper.svg");
+  background-repeat: repeat;
+  background-size: 340px 340px;
+  filter: url(#card-tear) drop-shadow(0 0 12px rgba(0, 0, 0, 0.17))
+    drop-shadow(0 12px 26px rgba(0, 0, 0, 0.18));
+}
+
+.skill-board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: 1rem;
+}
+
+/* Absolutely placed (left/top set inline). Padding gives the zoom room to grow
+   inside the hover target, so hovering never flickers as the icon scales up. */
+.skill-chip {
+  position: absolute;
+  transform: translate(-50%, calc(-50% + 8px));
+  opacity: 0.2;
+  padding: 0.9rem;
+  z-index: 1;
+  cursor: pointer;
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+/* Fade + rise into place as the icon lights up (or on hover) */
+.skill-chip.is-lit,
+.skill-chip:hover {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+.skill-chip:hover {
+  z-index: 20;
+}
+
+.skill-icon {
+  position: relative;
+  width: var(--icon, 64px);
+  height: var(--icon, 64px);
+  transform: rotate(var(--rot, 0deg));
+  transform-origin: center;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.skill-chip:hover .skill-icon {
+  transform: rotate(0deg) scale(1.28);
+}
+
+/* Starts dim + desaturated, lights up to full colour when .is-lit is toggled on
+   by the scroll loop (or on hover). filter transition = the "light up" glow. */
+.skill-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  filter: grayscale(1) brightness(1.05);
+  transition: filter 0.55s ease;
+}
+.skill-chip.is-lit .skill-img {
+  filter: grayscale(0) brightness(1) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
+}
+.skill-chip:hover .skill-img {
+  filter: grayscale(0) brightness(1.03) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+}
+
+/* Label appears beside the icon on hover */
+.skill-label {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  margin-left: 4px;
+  transform: translateY(-50%) translateX(-8px);
+  white-space: nowrap;
+  padding: 0.36rem 0.82rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #2a2825;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  z-index: 5;
+}
+/* Torn-paper backing behind the label text. The SVG displacement filter rips
+   the edges; the text sits on top (z-index) so it stays crisp. */
+.skill-label::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: #ffffff;
+  background-image: url("/paper.svg");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  border: 2px solid #141414;
+  filter: url(#paper-tear) drop-shadow(0 5px 7px rgba(0, 0, 0, 0.32));
+}
+.skill-chip:hover .skill-label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skill-chip,
+  .skill-icon,
+  .skill-img,
+  .skill-label {
+    transition: none;
+  }
 }
