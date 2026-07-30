@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useMotionValue, useTransform, motion } from "framer-motion";
+import SectionSky from "./SectionSky";
 
 type Project = {
   number: string;
@@ -8,8 +9,12 @@ type Project = {
   description: string;
   tech: string[];
   image: string;
+  /* Screenshots fill the frame. Line art (the site's own favicon) has to sit
+     inside it instead, or it just gets cropped into an unreadable blob. */
+  imageFit?: "cover" | "contain";
   color: string; // sticky-note background
-  links: { label: string; url: string }[];
+  // A link with no url is a status marker ("Work In Progress"), not a dead link.
+  links: { label: string; url?: string }[];
 };
 
 const projects: Project[] = [
@@ -17,7 +22,7 @@ const projects: Project[] = [
     number: "01",
     title: "Smart Campus Navigation with Queue & Appointment Integration",
     description:
-      "Our college capstone — campus navigation with built-in queueing and appointment booking. A full-stack team build.",
+      "Our college capstone, campus navigation with built-in queueing and appointment booking.",
     tech: ["Laravel", "Livewire", "MySQL"],
     image: "/projects/smartcamp.jpg",
     color: "#FCEFA6",
@@ -33,7 +38,7 @@ const projects: Project[] = [
     number: "02",
     title: "Access Control Log System",
     description:
-      "An access-control logging system for our Systems Analysis & Design course — our first fully documented R&D project.",
+      "An access-control logging system for our Systems Analysis & Design course.",
     tech: ["Laravel", "Angular", "MySQL"],
     image: "/projects/acls.jpg",
     color: "#FBC4D0",
@@ -48,17 +53,17 @@ const projects: Project[] = [
     number: "03",
     title: "Northern Luzon Adventist Hospital's Management Information System",
     description:
-      "A real hospital MIS built during my internship — an all-in-one platform: HRIS, payroll, inventory, leave, maintenance and more.",
+      "A real hospital MIS built during my internship, an all-in-one platform.",
     tech: ["Laravel", "Livewire", "MySQL"],
     image: "/projects/nlah.jpg",
     color: "#C4E8C2",
-    links: [{ label: "Visit Website", url: "https://nlaho.leuvhano.fun" }],
+    links: [{ label: "Visit Website", url: "https://nlah.leuvhano.fun" }],
   },
   {
     number: "04",
     title: "Mobile Point of Sales System (Android)",
     description:
-      "An offline-capable Android point-of-sale app I built for fun, adapted from my internship POS work.",
+      "An offline-capable Android point-of-sale app I built for fun.",
     tech: ["Kotlin", "Java", "SQLite"],
     image: "/projects/mpos.jpg",
     color: "#BBD9F0",
@@ -73,7 +78,7 @@ const projects: Project[] = [
     number: "05",
     title: "Chrono Paradox",
     description:
-      "A 2D time-travel game for our Software Engineering course — I coded it and hand-drew every asset myself.",
+      "A 2D time-travel game, I coded it and hand-drew every asset myself.",
     tech: ["Phaser", "Angular"],
     image: "/projects/chrono.jpg",
     color: "#D9C6EE",
@@ -88,20 +93,44 @@ const projects: Project[] = [
     number: "06",
     title: "Omori-Inspired Portfolio Website",
     description:
-      "A portfolio site themed after my favorite game, Omori — I wanted a portfolio built around a game I love.",
+      "A portfolio site themed after my favorite game, Omori.",
     tech: ["Next.js", "Vercel"],
     image: "/projects/portfolio.jpg",
     color: "#FBD0A6",
     links: [{ label: "Visit Website", url: "https://etlils-portfolio.vercel.app/" }],
   },
+  {
+    number: "07",
+    title: "Hand-Drawn Portfolio (This Very Site)",
+    description:
+      "The one you're looking at, a paper-and-pencil portfolio, built with Claude Code as my pair.",
+    tech: ["Next.js", "TypeScript", "Tailwind CSS", "Phaser", "Vercel", "Claude Code"],
+    image: "/icon.svg", // the site's own favicon, served by app/icon.svg
+    imageFit: "contain",
+    color: "#B7E4E0",
+    links: [{ label: "View Source", url: "https://github.com/Etlil/portfolio" }],
+  },
+  {
+    number: "08",
+    title: "Prism: Mood-Tracking Photo Journal",
+    description:
+      "A year of moods as colored pixels, tap any day to journal and attach photos.",
+    tech: ["Vue.js", "PostgreSQL", "Capacitor", "Claude Code"],
+    image: "/projects/prism.png",
+    color: "#F0C3E0",
+    links: [{ label: "Work In Progress" }],
+  },
 ];
 
 // Map a tech/tool name to its icon in /public/skills. Falls back to a text
-// chip when there's no matching icon (e.g. Livewire, Volt, Vercel).
+// chip when there's no matching icon (e.g. Volt).
 const TECH_ICON: Record<string, string> = {
   Laravel: "laravel",
+  Livewire: "livewire",
   MySQL: "mysql",
+  PostgreSQL: "postgre",
   Angular: "angular",
+  "Vue.js": "vue",
   Kotlin: "kotlin",
   Java: "java",
   SQLite: "sqlite",
@@ -110,12 +139,18 @@ const TECH_ICON: Record<string, string> = {
   React: "react",
   PHP: "php",
   JavaScript: "js",
+  TypeScript: "ts",
+  "Node.js": "nodejs",
+  Capacitor: "capacitor",
   HTML: "html",
   CSS: "css",
+  "Tailwind CSS": "css", // the CSS doodle covers Bootstrap/Tailwind in Skills too
   Python: "python",
   MongoDB: "mongodb",
   Git: "git",
   GitHub: "github",
+  Vercel: "vercel",
+  "Claude Code": "claude",
 };
 
 const CARD_W = 280;
@@ -184,8 +219,12 @@ export default function Projects() {
         setDims({ offsetX: 0, offsetY: 28, isMobile: true });
       } else {
         const availableW = containerW * 0.9; // match the 5% padding on each side
-        const maxTotalW = CARD_W + BASE_OFFSET_X * (projects.length - 1);
-        const scale = Math.min(1, availableW / maxTotalW);
+        // Only the offsets shrink — the card itself is a fixed 280px — so the
+        // scale has to be measured against the room left *beside* that card.
+        // (Scaling against the whole stack width lets it overrun on laptops,
+        // and worse with every project added.)
+        const maxOffsetW = BASE_OFFSET_X * (projects.length - 1);
+        const scale = Math.min(1, Math.max(0, (availableW - CARD_W) / maxOffsetW));
         setDims({
           offsetX: Math.floor(BASE_OFFSET_X * scale),
           offsetY: Math.floor(BASE_OFFSET_Y * scale),
@@ -214,10 +253,12 @@ export default function Projects() {
     <div
       ref={sectionRef}
       id="projects"
-      style={{ height: `${100 + totalCards * 30}vh` }}
+      style={{ position: "relative", height: `${100 + totalCards * 30}vh` }}
     >
+      <SectionSky seed={2} clouds={6} stars={11} freeze />
       <div
         ref={containerRef}
+        className="pin-stage"
         style={{
           position: "sticky",
           top: 0,
@@ -310,6 +351,16 @@ function ProjectCard({
     return 1 - depth * 0.015;
   });
 
+  /* Shadow cast by the card stacked on top of this one. Hoisted out of the JSX
+     below: it used to be called inside `index < total - 1 && (…)`, which is a
+     conditional hook — the day a project is added or removed, `total` changes
+     under a live component and React sees the hook order shift. Always call it;
+     the JSX decides whether to render the div. */
+  const overlapShade = useTransform(scrollProgress, (v) => {
+    const nextCardEnd = Math.min(1, (index + 2) / total);
+    return v >= nextCardEnd ? 1 : 0;
+  });
+
   return (
     <motion.div
       style={{
@@ -338,14 +389,13 @@ function ProjectCard({
             background: "linear-gradient(to left, rgba(0,0,0,0.18), transparent)",
             zIndex: 2,
             pointerEvents: "none",
-            opacity: useTransform(scrollProgress, (v) => {
-              const nextCardEnd = Math.min(1, (index + 2) / total);
-              return v >= nextCardEnd ? 1 : 0;
-            }),
+            opacity: overlapShade,
           }}
         />
       )}
+      {/* sticky-note: stays bright paper at night, so its ink stays dark */}
       <div
+        className="sticky-note"
         style={{
           backgroundColor: project.color,
           backgroundImage: "url('/paper.svg')",
@@ -372,10 +422,16 @@ function ProjectCard({
             style={{
               width: "100%",
               aspectRatio: "1 / 1",
-              objectFit: "cover",
+              objectFit: project.imageFit ?? "cover",
               display: "block",
               border: "3px solid #fff",
               boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
+              // A transparent drawing needs its own paper to sit on, and room
+              // to breathe inside the frame — a photo needs neither.
+              ...(project.imageFit === "contain" && {
+                padding: "14%",
+                backgroundColor: "rgba(255,255,255,0.55)",
+              }),
             }}
           />
           <span
@@ -436,18 +492,30 @@ function ProjectCard({
 
         {project.links.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {project.links.map((l) => (
-              <a
-                key={l.label}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="uppercase tracking-widest text-gray-800 underline underline-offset-2 hover:text-black transition-colors"
-                style={{ fontSize: "0.64rem", fontWeight: 600 }}
-              >
-                {l.label} ↗
-              </a>
-            ))}
+            {project.links.map((l) =>
+              l.url ? (
+                <a
+                  key={l.label}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="uppercase tracking-widest text-gray-800 underline underline-offset-2 hover:text-black transition-colors"
+                  style={{ fontSize: "0.64rem", fontWeight: 600 }}
+                >
+                  {l.label} ↗
+                </a>
+              ) : (
+                // Nowhere to go yet — no underline and no arrow, so it reads as a
+                // status rather than a link that's broken.
+                <span
+                  key={l.label}
+                  className="uppercase tracking-widest text-gray-600"
+                  style={{ fontSize: "0.64rem", fontWeight: 600 }}
+                >
+                  {l.label}
+                </span>
+              )
+            )}
           </div>
         )}
       </div>

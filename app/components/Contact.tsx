@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import SectionSky from "./SectionSky";
 
 const EMAIL = "jezreelpimentel@gmail.com";
 const LINKEDIN_URL = "https://www.linkedin.com/in/jezreel-pimentel-9394a9317";
@@ -13,7 +14,6 @@ const WEB3FORMS_ACCESS_KEY = "0f5113ec-3828-4f0e-a013-0ac6d22bc7dd";
 
 const socials = [
   { file: "linkedin", label: "LinkedIn", href: LINKEDIN_URL },
-  { file: "google", label: "Email me", href: `mailto:${EMAIL}` },
   { file: "facebook", label: "Facebook", href: FACEBOOK_URL },
 ];
 
@@ -72,29 +72,31 @@ export default function Contact() {
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // contact-ink = var(--ink) — the same pencil grey as the rest of the site.
   const inputClass =
-    "relative z-10 w-full px-4 py-3 text-sm bg-transparent border-0 text-[#2a2825] " +
-    "placeholder:text-[#6b6762]/70 focus:outline-none focus:bg-black/[0.04] transition-colors";
+    "contact-ink relative z-10 w-full px-4 py-3 text-sm bg-transparent border-0 " +
+    "focus:outline-none focus:bg-black/[0.04] transition-colors";
 
   // White, paper-textured chip with a torn black outline — the same look as the
   // Skills hover labels (via the #field-tear displacement filter). Lives behind
   // the field so the text/label on top stays crisp.
   const fieldBacking: CSSProperties = {
     zIndex: 0,
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--field-paper)",
     backgroundImage: "url('/paper.svg')",
     backgroundRepeat: "repeat",
     backgroundSize: "150px 150px",
-    border: "2px solid #141414",
+    border: "2px solid var(--ink-line)",
     filter: "url(#field-tear)",
   };
 
   return (
     <section
       id="contact"
-      className="flex flex-col justify-center"
+      className="relative flex flex-col justify-center"
       style={{ minHeight: "100vh", padding: "clamp(5.5rem, 10vh, 7rem) 6% 2rem" }}
     >
+      <SectionSky seed={4} fireflies={18} />
       {/* Torn-paper edge for the form card — a milder version of the Skills
           cards' #card-tear (shallower, finer tears). */}
       <svg aria-hidden="true" width="0" height="0" style={{ position: "absolute" }}>
@@ -168,10 +170,10 @@ export default function Contact() {
                 the fields on the layer above stay crisp (same trick as the cards). */}
             <div
               aria-hidden
-              className="absolute inset-0"
+              className="form-paper absolute inset-0"
               style={{
                 zIndex: 0,
-                backgroundColor: "#f4f2ee",
+                backgroundColor: "var(--form-paper)",
                 backgroundImage: "url('/paper.svg')",
                 backgroundRepeat: "repeat",
                 backgroundSize: "320px 320px",
@@ -183,7 +185,7 @@ export default function Contact() {
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Name</label>
                 <div className="relative">
-                  <div aria-hidden className="absolute inset-0" style={fieldBacking} />
+                  <div aria-hidden className="field-paper absolute inset-0" style={fieldBacking} />
                   <input
                     type="text"
                     required
@@ -197,7 +199,7 @@ export default function Contact() {
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Email</label>
                 <div className="relative">
-                  <div aria-hidden className="absolute inset-0" style={fieldBacking} />
+                  <div aria-hidden className="field-paper absolute inset-0" style={fieldBacking} />
                   <input
                     type="email"
                     required
@@ -211,7 +213,7 @@ export default function Contact() {
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Message</label>
                 <div className="relative">
-                  <div aria-hidden className="absolute inset-0" style={fieldBacking} />
+                  <div aria-hidden className="field-paper absolute inset-0" style={fieldBacking} />
                   <textarea
                     rows={4}
                     required
@@ -225,12 +227,12 @@ export default function Contact() {
               <button
                 type="submit"
                 disabled={status === "sending"}
-                className="relative block w-full text-sm font-semibold uppercase tracking-widest text-[#2a2825] transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+                className="contact-ink relative block w-full text-sm font-semibold uppercase tracking-widest transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
                 style={{ padding: "0.95rem" }}
               >
                 <span
                   aria-hidden
-                  className="absolute inset-0"
+                  className="field-paper absolute inset-0"
                   style={{ ...fieldBacking, filter: "url(#field-tear) drop-shadow(0 5px 10px rgba(0,0,0,0.18))" }}
                 />
                 <span className="relative z-10">
@@ -254,7 +256,7 @@ export default function Contact() {
 
         <div
           className="mt-6 pt-4 text-center"
-          style={{ borderTop: "1px solid rgba(63,61,58,0.2)" }}
+          style={{ borderTop: "1px solid var(--rule)" }}
         >
           <button
             type="button"

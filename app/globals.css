@@ -37,9 +37,120 @@ html.lenis.lenis-smooth [data-lenis-prevent] {
   box-sizing: border-box;
 }
 
+/* ══ DAY / NIGHT ══
+   ONE overlay. `.amb-dark` is a single fixed sheet of `--night` laid over the
+   whole page at z-index 9998, and that is the entire mechanism — no surface is
+   recoloured, inverted, filtered or given a wash of its own. The navbar sits at
+   9999, above the sheet, so it is not touched at all.
+
+   The writing then rises back above the sheet: `z-index: 9998` on the text means
+   equal z-index with the sheet, and equal z-index is settled by document order —
+   the sheet is rendered before the page in layout.tsx, so anything in the page
+   asking for 9998 paints over it. That is why the ink can simply be white with
+   no outline: it is above the darkness, and the paper it sits on is below.
+
+   The two pinned sections need one extra step. `position: sticky` makes their
+   containers stacking contexts, which traps everything inside them below the
+   sheet. So those containers are raised above the sheet and carry the identical
+   flat `--night` as an `::after` of their own, with their headings and skill
+   icons raised above that. Flat colour is what makes this invisible: the same
+   rgba composited once is the same pixel wherever it comes from, so no edge can
+   show between the sheet and a container's copy of it.
+
+   Two places the ink cannot follow, both for the same reason — a transform
+   creates a stacking context their text can't climb out of, so the darkness can
+   never get between the surface and its own writing: the project cards
+   (framer-motion transforms) and About's stats sheet. Those keep their pencil
+   ink, which stays legible because the surface under it is dimmed by the same
+   sheet. */
+:root {
+  --paper: #ebebeb;          /* the desk the whole site sits on */
+  --rule-line: rgba(255, 182, 193, 0.5); /* the pink ruled lines */
+  --nav-paper: #FFDEE2;
+  --panel-paper: #F8E2CF;    /* About's stats sheet */
+  --card-paper: #edece9;     /* Skills' torn cards */
+  --form-paper: #f4f2ee;     /* Contact's note */
+  --field-paper: #ffffff;    /* the form fields */
+  --ink: #3f3d3a;            /* headings drawn in pencil */
+  --ink-soft: #6b6762;
+  --ink-line: #141414;       /* torn outlines */
+  --rule: rgba(63, 61, 58, 0.2);
+  --cord: #2f2d2a;           /* the sun's string */
+  /* The one wash. Flat on purpose: identical wherever it is applied, so surface
+     washes and the desk wash composite to exactly the same colour and no edge
+     between them can show. */
+  --night: rgba(6, 10, 26, 0.88);
+}
+
+/* ── THE INK ──
+   White, and raised to the sheet's own z-index so document order carries it
+   over the top (see the note above). No outline, no glow — the darkness is
+   underneath it. */
+html.dark {
+  --ink: #ffffff;
+  --ink-soft: #eef2fa;
+}
+html.dark .pin-stage { --ink: #3f3d3a; --ink-soft: #6b6762; }
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-gray-400,
+html.dark .text-green-700,
+html.dark .text-red-700,
+html.dark .contact-ink {
+  color: #ffffff !important;
+  position: relative;
+  z-index: 9998;
+}
+html.dark .bg-gray-900 { background-color: #ffffff !important; } /* hamburger */
+
+/* …except the two surfaces whose text is sealed inside a transform and can
+   never rise above the sheet. White there would be white-on-dimmed-white, so
+   they keep their pencil, which reads fine against the dimmed paper. */
+html.dark .sticky-note .text-gray-900,
+html.dark .paper-panel .text-gray-900 { color: var(--color-gray-900) !important; }
+html.dark .sticky-note .text-gray-800,
+html.dark .paper-panel .text-gray-800 { color: var(--color-gray-800) !important; }
+html.dark .sticky-note .text-gray-700,
+html.dark .paper-panel .text-gray-700 { color: var(--color-gray-700) !important; }
+html.dark .sticky-note .text-gray-600,
+html.dark .paper-panel .text-gray-600 { color: var(--color-gray-600) !important; }
+html.dark .sticky-note .text-gray-500,
+html.dark .paper-panel .text-gray-500 { color: var(--color-gray-500) !important; }
+html.dark .sticky-note .text-gray-400,
+html.dark .paper-panel .text-gray-400 { color: var(--color-gray-400) !important; }
+
+/* ── WHAT THE OVERLAY CANNOT REACH ──
+   Three places keep their pencil ink instead of turning white, all for the same
+   structural reason: their text is sealed inside a stacking context (a sticky
+   container, or a framer-motion transform), so it cannot rise to the sheet's
+   level, and CSS gives no way to slide one shared overlay between a surface and
+   its own writing. White there would be white under the sheet — invisible. The
+   pencil stays legible because the paper beneath it is dimmed by the same sheet.
+     · the two pinned sections (Projects, Skills)
+     · the project cards
+     · About's stats sheet */
+html.dark :is(.sticky-note, .paper-panel, .pin-stage) :is(.text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400) {
+  position: static;
+}
+html.dark .pin-stage .text-gray-900 { color: var(--color-gray-900) !important; }
+html.dark .pin-stage .text-gray-800 { color: var(--color-gray-800) !important; }
+html.dark .pin-stage .text-gray-700 { color: var(--color-gray-700) !important; }
+html.dark .pin-stage .text-gray-600 { color: var(--color-gray-600) !important; }
+html.dark .pin-stage .text-gray-500 { color: var(--color-gray-500) !important; }
+html.dark .pin-stage .text-gray-400 { color: var(--color-gray-400) !important; }
+html.dark .skill-card h3,
+html.dark .skill-card p { color: var(--ink-day, #3f3d3a) !important; }
+
+
+.contact-ink { color: var(--ink); }
+.contact-ink::placeholder { color: var(--ink-soft); opacity: 0.75; }
+
 @layer base {
   body {
-    background-color: #ebebeb;
+    background-color: var(--paper);
     min-height: 100vh;
     position: relative;
   }
@@ -52,9 +163,9 @@ html.lenis.lenis-smooth [data-lenis-prevent] {
     width: 100%;
     height: max(100vh, 100%);
     min-height: 100vh;
-    background-image: 
+    background-image:
       url("/paper.svg"),
-      linear-gradient(rgba(255, 182, 193, 0.5) 2.5px, transparent 2.5px);
+      linear-gradient(var(--rule-line) 2.5px, transparent 2.5px);
     background-size: 500px 500px, 100% 40px;
     background-repeat: repeat, repeat;
     pointer-events: none;
@@ -62,7 +173,7 @@ html.lenis.lenis-smooth [data-lenis-prevent] {
   }
 
   .paper-texture {
-    background-color: #F8E2CF;
+    background-color: var(--panel-paper);
     background-image: url("/paper.svg");
     background-repeat: repeat;
     background-size: 500px 500px;
@@ -105,7 +216,7 @@ body.game-returning #main-content {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-color: #edece9;
+  background-color: var(--card-paper);
   background-image: url("/paper.svg");
   background-repeat: repeat;
   background-size: 340px 340px;
@@ -215,3 +326,187 @@ body.game-returning #main-content {
     transition: none;
   }
 }
+
+/* ── THE SUN ON ITS STRING ──
+   Hangs over the hero heading from a cord that runs up off the top of the page,
+   behind the torn header. Pull it and the site goes to sleep.
+   Positioning lives inline in SunLamp.tsx — see the note there. */
+.sun-lamp {
+  left: 3.25rem;
+}
+
+.sun-lamp__cord {
+  width: 2px;
+  background: var(--cord);
+  border-radius: 2px;
+  opacity: 0.72;
+  transform-origin: top center; /* stretches downward as the sun is pulled */
+  transition: background-color 850ms ease;
+}
+
+.sun-lamp__bulb {
+  width: clamp(72px, 8vw, 118px);
+  height: clamp(72px, 8vw, 118px);
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: filter 300ms ease;
+}
+.sun-lamp__bulb:hover {
+  filter: brightness(1.07) drop-shadow(0 0 14px rgba(255, 214, 90, 0.5));
+}
+.sun-lamp__bulb:focus-visible {
+  outline: 2px dashed var(--ink-soft);
+  outline-offset: 6px;
+}
+
+.sun-lamp__face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 850ms ease;
+}
+.sun-lamp__face--moon {
+  filter: drop-shadow(0 0 18px rgba(255, 236, 170, 0.45));
+}
+
+/* The moon shines over the darkness, so this is mood rather than rescue. */
+html.dark .sun-lamp__face--moon {
+  filter: drop-shadow(0 0 14px rgba(255, 226, 130, 0.75)) drop-shadow(0 0 32px rgba(255, 214, 92, 0.4));
+}
+
+/* On a phone the heading sits right under the photo frame — hang the sun off
+   to the side instead of on top of it. */
+@media (max-width: 640px) {
+  .sun-lamp {
+    left: auto;
+    right: 0.25rem;
+  }
+}
+
+/* ── AMBIENCE ──
+   Looks and motion only — every `position` these need is set inline in
+   Ambience.tsx so that a missing stylesheet can't drop 60 sprites into the
+   document flow. See the note at the top of that file. */
+
+/* The header sits above the darkness sheet (so the moon and stars can pass
+   behind it), which means the sheet never dims it. It takes its own share of the
+   night with a filter rather than an overlay, on purpose: the torn paper edge is
+   a semi-transparent PNG, and an overlay across the header would darken the pink
+   strip AND darken the page showing through the gaps a second time — a visible
+   seam right under the bar. A filter only touches what the header actually
+   draws, so the bar and its torn edge go dark together and whatever shows
+   through stays exactly as dark as the rest of the page.
+   Tuned to match `.amb-dark`'s value at the top of the screen. */
+.site-header {
+  transition: filter 1100ms ease;
+}
+html.dark .site-header {
+  filter: brightness(0.53) saturate(0.88);
+}
+
+/* The darkness. One sheet over the whole finished page — the navbar included,
+   so nothing is left glowing at full brightness. Slightly heavier at the edges
+   than in the middle, and tinted navy rather than flat black so the drawings
+   underneath go moonlit instead of grey.
+
+   Raise the alpha for a deeper night; the trade is legibility, since the ink
+   dims along with the paper it's drawn on. */
+.amb-dark {
+  /* Flat, not a gradient: a container that has to carry its own copy of the
+     darkness (see .pin-stage) then composites to exactly the same pixel, so the
+     two are indistinguishable and no edge can show between them. */
+  background: var(--night);
+  opacity: 0;
+  transition: opacity 1100ms ease;
+}
+html.dark .amb-dark { opacity: 1; }
+/* …except while the paper plane's game is up. It's a canvas you have to play,
+   and playing it through a 60% scrim is no fun — the lights come back on. */
+body.game-active .amb-dark { opacity: 0; }
+
+/* Clouds, birds and stars are placed in their section's background by
+   SectionSky and simply stay put — no drifting across the window, no fading in
+   or out. Only the star's twinkle and the fireflies move, and neither leaves the
+   spot it was drawn on.
+
+   Stars sit under the darkness (they're background), so they carry a glow of
+   their own to read through it. */
+/* Stars shine over the darkness rather than under it, so they need no dark
+   pocket to be seen — full crayon yellow against a dimmed page is plenty. The
+   glow just softens the edge. */
+.amb-star img {
+  filter: drop-shadow(0 0 7px rgba(255, 216, 104, 0.65)) saturate(1.15);
+}
+.amb-star {
+  animation-name: ambTwinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Fireflies mill about where they sit: ambWander takes them out and back,
+   ambBob rides them up and down, and the blink is out of step with both, so no
+   two ever look alike. */
+.amb-fly {
+  animation-name: ambWander;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.amb-fly__bob {
+  animation-name: ambBob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.amb-fly__glow {
+  filter: drop-shadow(0 0 9px rgba(255, 231, 145, 0.9));
+  animation-name: ambBlink;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Fireflies don't commute — they mill about. Out, further out, drift back, and
+   round again, so the loop never reads as a loop. */
+@keyframes ambWander {
+  0% { transform: translateX(0); }
+  28% { transform: translateX(var(--wander, 30vw)); }
+  52% { transform: translateX(calc(var(--wander, 30vw) * 0.45)); }
+  76% { transform: translateX(calc(var(--wander, 30vw) * 1.35)); }
+  100% { transform: translateX(0); }
+}
+@keyframes ambBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(var(--bob, -20px)); }
+}
+/* A shallow dip only — under the darkness there's no brightness to spare. */
+@keyframes ambTwinkle {
+  0%, 100% { opacity: var(--dim, 0.72); transform: rotate(var(--rot, 0deg)) scale(0.9); }
+  50% { opacity: 1; transform: rotate(var(--rot, 0deg)) scale(1.08); }
+}
+@keyframes ambBlink {
+  0%, 100% { opacity: 0.06; }
+  18% { opacity: 1; }
+  32% { opacity: 0.2; }
+  54% { opacity: 0.92; }
+  72% { opacity: 0.12; }
+}
+
+/* Nothing here is worth making anyone motion-sick over. Everything is placed
+   rather than travelling, so holding it still costs nothing — the sky just stops
+   moving, and the slow twinkle and blink carry the mood. */
+@media (prefers-reduced-motion: reduce) {
+  .amb-fly,
+  .amb-fly__bob {
+    animation: none;
+  }
+  .amb-star,
+  .amb-fly__glow {
+    animation-duration: 6s;
+  }
+}
+
+

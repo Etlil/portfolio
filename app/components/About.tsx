@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
 import { useMotionValue, motion } from "framer-motion";
+import SectionSky from "./SectionSky";
 
 export default function About() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -76,10 +77,11 @@ export default function About() {
     <section
       ref={sectionRef}
       id="about"
-      className="min-h-screen flex items-center pt-20"
+      className="relative min-h-screen flex items-center pt-20"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
+      <SectionSky seed={1} stars={9} />
       <div className="max-w-6xl mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
         <div>
 
@@ -133,7 +135,8 @@ export default function About() {
                 />
               </div>
 
-              <div>
+              {/* relative: the sun hangs off the top of this block */}
+              <div style={{ position: "relative" }}>
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-3">
                   I'm Jezreel Pimentel
                 </h1>
@@ -160,13 +163,14 @@ export default function About() {
         >
           {/* All 4 stats in one column inside one frame */}
           <div
+            className="paper-panel"
             style={{
               position: "absolute",
               top: "0%",
               left: "0%",
               width: "98%",
               height: "97%",
-              backgroundColor: "#F8E2CF",
+              backgroundColor: "var(--panel-paper)",
               backgroundImage: "url('/paper.svg')",
               backgroundRepeat: "repeat",
               backgroundSize: "300px 300px",

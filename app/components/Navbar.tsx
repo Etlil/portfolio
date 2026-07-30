@@ -23,7 +23,7 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 w-full z-[9999] flex flex-col">
-      <nav className="px-6 pt-1 pb-4 relative z-10" style={{ backgroundColor: "#FFDEE2" }}>
+      <nav className="px-6 pt-1 pb-4 relative z-10" style={{ backgroundColor: "var(--nav-paper)" }}>
         <div className="max-w-6xl mx-auto w-full flex justify-between items-center mt-4">
           <a
             href="#about"
@@ -90,7 +90,7 @@ export default function Navbar() {
       </nav>
 
       {/* Ripped paper edge */}
-      <div className="w-full relative z-0" style={{ height: "60px", marginTop: "-10px" }}>
+      <div className="nav-tear-wrap w-full relative z-0" style={{ height: "60px", marginTop: "-10px" }}>
         <img
           src="/ripped.png"
           alt=""

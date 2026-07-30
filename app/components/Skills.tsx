@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import SectionSky from "./SectionSky";
 
 type Skill = { file: string; label: string };
 type Group = { heading: string; skills: Skill[] };
@@ -12,9 +13,12 @@ const groups: Group[] = [
       { file: "html", label: "HTML" },
       { file: "css", label: "CSS, Bootstrap, Tailwind CSS" },
       { file: "js", label: "JavaScript" },
+      { file: "ts", label: "TypeScript" },
       { file: "react", label: "React & React Native" },
       { file: "angular", label: "Angular" },
+      { file: "vue", label: "Vue.js" },
       { file: "nextjs", label: "Next.js" },
+      { file: "capacitor", label: "Capacitor" },
       { file: "phaser", label: "Phaser" },
     ],
   },
@@ -23,10 +27,13 @@ const groups: Group[] = [
     skills: [
       { file: "php", label: "PHP" },
       { file: "laravel", label: "Laravel" },
+      { file: "livewire", label: "Livewire" },
       { file: "java", label: "Java" },
       { file: "python", label: "Python" },
       { file: "kotlin", label: "Kotlin" },
+      { file: "nodejs", label: "Node.js" },
       { file: "mysql", label: "MySQL" },
+      { file: "postgre", label: "PostgreSQL" },
       { file: "mongodb", label: "MongoDB" },
       { file: "sqlite", label: "SQLite" },
     ],
@@ -36,6 +43,8 @@ const groups: Group[] = [
     skills: [
       { file: "git", label: "Git" },
       { file: "github", label: "GitHub" },
+      { file: "vercel", label: "Vercel" },
+      { file: "claude", label: "Claude Code" },
       { file: "ps", label: "Photoshop" },
       { file: "pr", label: "Premiere Pro" },
       { file: "id", label: "InDesign" },
@@ -44,8 +53,9 @@ const groups: Group[] = [
   },
 ];
 
-const GRAPHITE = "#3f3d3a";
-const GRAPHITE_SOFT = "#6b6762";
+// Pencil by day, chalk by night — both live in globals.css.
+const GRAPHITE = "var(--ink)";
+const GRAPHITE_SOFT = "var(--ink-soft)";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -66,6 +76,10 @@ function mulberry32(seed: number) {
 
 type Placed = { x: number; y: number; rot: number; mult: number };
 
+// Inset of the icon *centres* within a board, as percentages. X stops well short
+// of the right edge so a hover label has room to unfurl without leaving the card.
+const X_MIN = 8, X_MAX = 76, Y_MIN = 12, Y_MAX = 88;
+
 /* Scatter `count` icons across a card as percentages. A jittered grid keeps them
    spread out (no clumps) while still looking hand-placed. Values are rounded so
    the sub-pixel PRNG output can't drift between Node and the browser. */
@@ -82,7 +96,6 @@ function scatter(seed: number, count: number): Placed[] {
     perRow.push(n);
     left -= n;
   }
-  const X_MIN = 8, X_MAX = 76, Y_MIN = 16, Y_MAX = 84; // inset; room for labels
   const out: Placed[] = [];
   for (let r = 0; r < rows; r++) {
     const n = perRow[r];
@@ -100,6 +113,171 @@ function scatter(seed: number, count: number): Placed[] {
     }
   }
   return out;
+}
+
+/* One relaxation run: separate every overlapping pair along its shallowest axis
+   until nothing touches, keeping centres inside [X_MIN, xMax] / [Y_MIN, Y_MAX].
+   Reports whether it actually settled, so the caller can loosen a constraint
+   and try again on a board too cramped for the ideal spacing. */
+function relax(
+  placed: Placed[],
+  sizes: number[],
+  boardW: number,
+  boardH: number,
+  xMax: number,
+  gap: number
+): { placed: Placed[]; settled: boolean } {
+  const n = placed.length;
+  const xs = placed.map((p) => (p.x / 100) * boardW);
+  const ys = placed.map((p) => (p.y / 100) * boardH);
+
+  // Centres stay within the design inset, but never so close to an edge that
+  // the icon itself hangs off the board.
+  const bounds = sizes.map((s) => {
+    const half = s / 2;
+    const loX = Math.max((X_MIN / 100) * boardW, half);
+    const hiX = Math.max(loX, Math.min((xMax / 100) * boardW, boardW - half));
+    const loY = Math.max((Y_MIN / 100) * boardH, half);
+    const hiY = Math.max(loY, Math.min((Y_MAX / 100) * boardH, boardH - half));
+    return { loX, hiX, loY, hiY };
+  });
+  const clampTo = (i: number) => {
+    const b = bounds[i];
+    xs[i] = Math.min(b.hiX, Math.max(b.loX, xs[i]));
+    ys[i] = Math.min(b.hiY, Math.max(b.loY, ys[i]));
+  };
+
+  let moved = true;
+  for (let pass = 0; pass < 220 && moved; pass++) {
+    moved = false;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = xs[j] - xs[i];
+        const dy = ys[j] - ys[i];
+        // Icons are squares, so overlap is an AABB test, not a circle one.
+        const ox = (sizes[i] + sizes[j]) / 2 + gap - Math.abs(dx);
+        const oy = (sizes[i] + sizes[j]) / 2 + gap - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue; // already clear on one axis
+        moved = true;
+        if (ox < oy) {
+          const push = (ox / 2) * (dx < 0 ? -1 : 1);
+          xs[i] -= push;
+          xs[j] += push;
+        } else {
+          const push = (oy / 2) * (dy < 0 ? -1 : 1);
+          ys[i] -= push;
+          ys[j] += push;
+        }
+        clampTo(i);
+        clampTo(j);
+      }
+    }
+  }
+
+  return {
+    settled: !moved, // false => it ran out of passes still resolving overlaps
+    placed: placed.map((p, i) => ({
+      ...p,
+      x: round2((xs[i] / boardW) * 100),
+      y: round2((ys[i] / boardH) * 100),
+    })),
+  };
+}
+
+/* Guaranteed-clear fallback for a board too cramped to relax — a phone card is
+   barely three icons wide, and nudging pairs apart inside those bounds just
+   deadlocks. Drops the icons onto the roomiest grid the board can hold, taking
+   the widest icon as the cell size so every pair clears by `gap` no matter which
+   two are adjacent. Rotation and size variety are preserved, and each icon is
+   offset within its cell by whatever slack is left, so it still reads as
+   hand-placed rather than as a table. */
+function gridFit(placed: Placed[], sizes: number[], boardW: number, boardH: number, xMax: number): Placed[] {
+  const n = placed.length;
+  const big = Math.max(...sizes);
+  const half = big / 2;
+  const loX = Math.max((X_MIN / 100) * boardW, half);
+  const hiX = Math.max(loX, Math.min((xMax / 100) * boardW, boardW - half));
+  const loY = Math.max((Y_MIN / 100) * boardH, half);
+  const hiY = Math.max(loY, Math.min((Y_MAX / 100) * boardH, boardH - half));
+  const spanX = hiX - loX;
+  const spanY = hiY - loY;
+
+  // Roomiest grid the board can still clear `gap` on, in both axes. Balanced
+  // rows never exceed the column count, so checking the row pitch is enough.
+  let rows = n, gap = 0;
+  for (const g of [10, 6, 2, 0]) {
+    const cell = big + g;
+    const c = Math.max(1, Math.min(n, Math.floor(spanX / cell) + 1));
+    const r = Math.ceil(n / c);
+    if (r === 1 || spanY / (r - 1) >= cell || g === 0) {
+      rows = r;
+      gap = g;
+      break;
+    }
+  }
+
+  // Balanced row counts, so no row is left nearly empty.
+  const perRow: number[] = [];
+  let left = n;
+  for (let r = 0; r < rows; r++) {
+    const take = Math.ceil(left / (rows - r));
+    perRow.push(take);
+    left -= take;
+  }
+
+  // Keep the scatter's reading order so the arrangement still resembles it.
+  const order = placed
+    .map((_, i) => i)
+    .sort((a, b) => placed[a].y - placed[b].y || placed[a].x - placed[b].x);
+
+  const out = placed.slice();
+  const rowStep = rows > 1 ? spanY / (rows - 1) : 0;
+  let k = 0;
+  for (let r = 0; r < rows; r++) {
+    const m = perRow[r];
+    const colStep = m > 1 ? spanX / (m - 1) : 0;
+    const slackX = Math.max(0, (colStep - big - gap) / 2);
+    const slackY = Math.max(0, (rowStep - big - gap) / 2);
+    for (let c = 0; c < m; c++) {
+      const i = order[k++];
+      // Re-use the icon's own rotation (±10°) as a deterministic jitter source —
+      // no PRNG needed here, and the offset can't exceed the cell's spare room.
+      const wobble = placed[i].rot / 10;
+      // Clamped because the edge cells have no room to wobble outwards.
+      const cx = Math.min(hiX, Math.max(loX, (m > 1 ? loX + c * colStep : (loX + hiX) / 2) + wobble * slackX));
+      const cy = Math.min(hiY, Math.max(loY, (rows > 1 ? loY + r * rowStep : (loY + hiY) / 2) + wobble * slackY));
+      out[i] = { ...placed[i], x: round2((cx / boardW) * 100), y: round2((cy / boardH) * 100) };
+    }
+  }
+  return out;
+}
+
+/* Push overlapping icons apart until none of them touch.
+
+   The scatter above only knows percentages, but whether two icons actually
+   collide depends on the board's real pixel size and the clamped icon size —
+   facts that only exist in the browser. So this runs client-side on measured
+   values, and it barely disturbs the hand-placed look because pairs are only
+   nudged along the axis they overlap least. `sizes` are icon widths in px,
+   index-matched to `placed`; the result is percentages again, so it stays
+   resolution-independent.
+
+   A phone-sized board can't hold eleven icons at arm's length, so constraints
+   are given up in order of how little they cost: first the gutter kept clear on
+   the right for hover labels (which a touch screen never shows anyway), then the
+   breathing room between icons, and finally the scatter itself. Not touching
+   wins. */
+function separate(placed: Placed[], sizes: number[], boardW: number, boardH: number): Placed[] {
+  const ATTEMPTS: [xMax: number, gap: number][] = [
+    [X_MAX, 10], // ideal — label gutter intact, icons comfortably apart
+    [92, 10], // spill into the gutter
+    [92, 4], // ...and tighten the spacing
+  ];
+  for (const [xMax, gap] of ATTEMPTS) {
+    const attempt = relax(placed, sizes, boardW, boardH, xMax, gap);
+    if (attempt.settled) return attempt.placed;
+  }
+  return gridFit(placed, sizes, boardW, boardH, 92);
 }
 
 const layouts = groups.map((g, gi) => scatter(gi * 97 + 13, g.skills.length));
@@ -125,16 +303,21 @@ const LIGHT_WINDOWS: [number, number][] = [
   [0.26, 0.52], // Backend
   [0.58, 0.82], // Tools
 ];
-const THRESHOLDS = new Array<number>(TOTAL_ICONS);
-groups.forEach((group, col) => {
-  const base = offsets[col];
-  const [start, end] = LIGHT_WINDOWS[col] ?? [col / groups.length, (col + 1) / groups.length];
-  const n = group.skills.length;
-  const byX = group.skills.map((_, idx) => idx).sort((a, b) => layouts[col][a].x - layouts[col][b].x);
-  byX.forEach((idx, rank) => {
-    THRESHOLDS[base + idx] = start + ((rank + 1) / (n + 1)) * (end - start);
+/* Recomputed whenever the positions change, so the left-to-right order survives
+   the separation pass nudging icons around. */
+function computeThresholds(placed: Placed[][]): number[] {
+  const out = new Array<number>(TOTAL_ICONS);
+  groups.forEach((group, col) => {
+    const base = offsets[col];
+    const [start, end] = LIGHT_WINDOWS[col] ?? [col / groups.length, (col + 1) / groups.length];
+    const n = group.skills.length;
+    const byX = group.skills.map((_, idx) => idx).sort((a, b) => placed[col][a].x - placed[col][b].x);
+    byX.forEach((idx, rank) => {
+      out[base + idx] = start + ((rank + 1) / (n + 1)) * (end - start);
+    });
   });
-});
+  return out;
+}
 
 const CARD_GAP = 32;
 /* Runway before the first card and after the last one, so they start/land
@@ -160,7 +343,16 @@ export default function Skills() {
   // One DOM ref per icon (flat, left-to-right) so the rAF loop can toggle their
   // lit state directly — no React re-render while scrolling.
   const iconRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const boardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const litRef = useRef<boolean[]>(new Array(TOTAL_ICONS).fill(false));
+
+  // Server-rendered scatter first (identical on both sides, so hydration
+  // matches), then replaced with the de-overlapped version once measured.
+  const [positions, setPositions] = useState<Placed[][]>(layouts);
+  const thresholdsRef = useRef<number[]>(computeThresholds(layouts));
+  useEffect(() => {
+    thresholdsRef.current = computeThresholds(positions);
+  }, [positions]);
 
   const [maxShift, setMaxShift] = useState(0);
   // One flag per card — latched true the first time the card slides into view.
@@ -188,6 +380,36 @@ export default function Skills() {
     const ro = new ResizeObserver(measure);
     if (trackRef.current) ro.observe(trackRef.current);
     if (viewportRef.current) ro.observe(viewportRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  /* Re-run the separation pass against the boards' real dimensions, and again
+     whenever a resize changes either the board or the (vw-clamped) icon size. */
+  useLayoutEffect(() => {
+    const relayout = () => {
+      const next = groups.map((group, col) => {
+        const board = boardRefs.current[col];
+        if (!board) return layouts[col];
+        const boardW = board.clientWidth;
+        const boardH = board.clientHeight;
+        if (!boardW || !boardH) return layouts[col];
+        const sizes = group.skills.map((_, idx) => {
+          const icon = iconRefs.current[offsets[col] + idx]?.firstElementChild as HTMLElement | null;
+          return icon?.offsetWidth || 64;
+        });
+        return separate(layouts[col], sizes, boardW, boardH);
+      });
+      // Same numbers means the same layout — bail rather than re-render.
+      setPositions((prev) =>
+        prev.every((col, i) => col.every((p, j) => p.x === next[i][j].x && p.y === next[i][j].y))
+          ? prev
+          : next
+      );
+    };
+
+    relayout();
+    const ro = new ResizeObserver(relayout);
+    boardRefs.current.forEach((b) => b && ro.observe(b));
     return () => ro.disconnect();
   }, []);
 
@@ -231,7 +453,7 @@ export default function Skills() {
       // Light the icons up one by one as the scroll percent passes each one's
       // threshold. classList only changes on a crossing, so this is cheap.
       for (let g = 0; g < TOTAL_ICONS; g++) {
-        const lit = current >= THRESHOLDS[g];
+        const lit = current >= thresholdsRef.current[g];
         if (lit !== litRef.current[g]) {
           litRef.current[g] = lit;
           iconRefs.current[g]?.classList.toggle("is-lit", lit);
@@ -283,8 +505,12 @@ export default function Skills() {
     <div
       ref={sectionRef}
       id="skills"
-      style={{ height: pinned ? `calc(100vh + ${maxShift * SCROLL_RUNWAY}px)` : "auto" }}
+      style={{
+        position: "relative",
+        height: pinned ? `calc(100vh + ${maxShift * SCROLL_RUNWAY}px)` : "auto",
+      }}
     >
+      <SectionSky seed={3} birds={5} stars={11} freeze />
       {/* Torn-paper edge for the hover labels — referenced from CSS via
           filter: url(#paper-tear). Displacing the label's paper backing with
           fractal noise rips its edges instead of a clean rectangle. */}
@@ -302,6 +528,7 @@ export default function Skills() {
         </defs>
       </svg>
       <div
+        className="pin-stage"
         style={{
           position: pinned ? "sticky" : "static",
           top: 0,
@@ -402,10 +629,15 @@ export default function Skills() {
                   </div>
 
                   {/* Scatter board — icons are absolutely placed within it */}
-                  <div className="skill-board">
+                  <div
+                    className="skill-board"
+                    ref={(el) => {
+                      boardRefs.current[col] = el;
+                    }}
+                  >
                     {group.skills.map((skill, idx) => {
                       const g = offsets[col] + idx;
-                      const pos = layouts[col][idx];
+                      const pos = positions[col][idx];
                       return (
                         <div
                           key={skill.file}
