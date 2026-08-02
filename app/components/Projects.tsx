@@ -118,6 +118,21 @@ const projects: Project[] = [
     tech: ["Vue.js", "PostgreSQL", "Capacitor", "Claude Code"],
     image: "/projects/prism.png",
     color: "#F0C3E0",
+    links: [
+      {
+        label: "Download the App",
+        url: "https://drive.google.com/file/d/1ZRlWOLcsjo0oJWguuLkH76ZInv_cxfZR/view?usp=drive_link",
+      },
+    ],
+  },
+  {
+    number: "09",
+    title: "UkeNote: Ukulele Tuner & Chord Book",
+    description:
+      "A ukulele companion — tuner, chord database, and songs you chart yourself.",
+    tech: ["React Native", "SQLite", "Claude Code"],
+    image: "/projects/ukenote.png",
+    color: "#D7E3A8",
     links: [{ label: "Work In Progress" }],
   },
 ];
@@ -137,6 +152,8 @@ const TECH_ICON: Record<string, string> = {
   Phaser: "phaser",
   "Next.js": "nextjs",
   React: "react",
+  "React Native": "react", // same logo, no separate doodle
+
   PHP: "php",
   JavaScript: "js",
   TypeScript: "ts",
