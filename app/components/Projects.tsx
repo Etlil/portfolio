@@ -121,7 +121,7 @@ const projects: Project[] = [
     links: [
       {
         label: "Download the App",
-        url: "https://drive.google.com/file/d/1ZRlWOLcsjo0oJWguuLkH76ZInv_cxfZR/view?usp=drive_link",
+        url: "https://drive.google.com/file/d/1wNit7u3Dd9bGQJdpuwg5nEgCKI6BRaBm/view?usp=sharing",
       },
     ],
   },
