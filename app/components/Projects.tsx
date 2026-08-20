@@ -133,7 +133,10 @@ const projects: Project[] = [
     tech: ["React Native", "SQLite", "Claude Code"],
     image: "/projects/ukenote.png",
     color: "#D7E3A8",
-    links: [{ label: "Work In Progress" }],
+    links: [
+      { label: "Download the App",
+        url:"https://drive.google.com/file/d/1eyZUZPIIlNU5J26tSquvAwX7EcVu-xXd/view?usp=drive_link"
+      }],
   },
 ];
 
