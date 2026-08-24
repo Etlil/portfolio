@@ -53,10 +53,6 @@ const groups: Group[] = [
   },
 ];
 
-// Pencil by day, chalk by night — both live in globals.css.
-const GRAPHITE = "var(--ink)";
-const GRAPHITE_SOFT = "var(--ink-soft)";
-
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -323,10 +319,13 @@ const CARD_GAP = 32;
 /* Runway before the first card and after the last one, so they start/land
    inset from the edge instead of flush. Matches the header's 6% gutter. */
 const EDGE_PAD = "6vw";
-/* Each card is at least 75vw wide, so three of them always overrun the screen
-   no matter how wide it is — the row is guaranteed to have room to scroll,
-   which is what makes the section pin every time. */
-const CARD_WIDTH = "max(320px, 75vw)";
+/* Card size lives in globals.css (`.skill-card`) rather than here, because it
+   is the one thing that has to be retuned per breakpoint: the width is a
+   fraction of the viewport — three cards at 75vw always overrun any screen,
+   which is what guarantees the row has something to scroll and therefore that
+   the section always pins — and the height is a fraction of the pinned stage,
+   so a landscape phone gets a card as tall as its screen rather than a 560px
+   one with its bottom half cut off. */
 /* Vertical scroll spent per horizontal pixel. >1 slows the slide so the pin
    feels deliberate and the icons have room to light up one at a time. */
 const SCROLL_RUNWAY = 1.4;
@@ -338,6 +337,7 @@ const cssVars = (vars: Record<string, string>) => vars as unknown as CSSProperti
 
 export default function Skills() {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   // One DOM ref per icon (flat, left-to-right) so the rAF loop can toggle their
@@ -367,7 +367,7 @@ export default function Skills() {
 
   /* How far the row overruns the viewport. That overrun is exactly how far we
      slide the row, and it sets the pinned section's height. Because the cards
-     are sized to always overrun (CARD_WIDTH), this is always > 0, so the
+     are sized to always overrun (`.skill-card` width), this is always > 0, so the
      section always pins and always converts vertical scroll into horizontal. */
   useEffect(() => {
     const measure = () => {
@@ -426,13 +426,20 @@ export default function Skills() {
       const el = sectionRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const scrollable = el.offsetHeight - window.innerHeight;
+      /* Measured off the sticky stage rather than off `window.innerHeight`.
+         They agree on a desktop; on a phone they do not, because the stage is
+         sized in `svh` (the viewport with the address bar showing) while
+         `innerHeight` follows the bar as it slides away. Taking the height from
+         the element that is actually pinned keeps the horizontal slide in step
+         with the scroll no matter what the browser chrome does. */
+      const pinH = stageRef.current?.offsetHeight || window.innerHeight;
+      const scrollable = el.offsetHeight - pinH;
       target = clamp01(-rect.top / (scrollable || 1));
 
       // Freeze the paper background while pinned. Projects pins too and shares
       // this class, so both write a flag and freeze if *either* is pinned —
       // that stops the two sections from yanking the freeze off each other.
-      const isPinnedNow = rect.top <= 0 && rect.bottom >= window.innerHeight;
+      const isPinnedNow = rect.top <= 0 && rect.bottom >= pinH;
       (window as any).__skillsPinned = isPinnedNow;
       const anyPinned = (window as any).__skillsPinned || (window as any).__projectsPinned;
       document.body.classList.toggle("bg-frozen", !!anyPinned);
@@ -507,7 +514,7 @@ export default function Skills() {
       id="skills"
       style={{
         position: "relative",
-        height: pinned ? `calc(100vh + ${maxShift * SCROLL_RUNWAY}px)` : "auto",
+        height: pinned ? `calc(var(--svh) * 100 + ${maxShift * SCROLL_RUNWAY}px)` : "auto",
       }}
     >
       <SectionSky seed={3} birds={5} stars={11} freeze />
@@ -528,25 +535,27 @@ export default function Skills() {
         </defs>
       </svg>
       <div
-        className="pin-stage"
+        ref={stageRef}
+        className={`pin-stage${pinned ? " stage-screen" : ""}`}
         style={{
           position: pinned ? "sticky" : "static",
           top: 0,
-          height: pinned ? "100vh" : "auto",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
           justifyContent: pinned ? "flex-start" : "center",
-          paddingTop: pinned ? "clamp(7rem, 13vh, 8.5rem)" : "6rem",
-          paddingBottom: pinned ? "1.5rem" : "6rem",
+          // The navbar's real height, published by Navbar.tsx — right at every
+          // breakpoint, where the old fixed 7rem was right at one of them.
+          paddingTop: pinned ? "var(--section-top)" : "6rem",
+          paddingBottom: pinned ? "clamp(0.5rem, 2vh, 1.5rem)" : "6rem",
         }}
       >
         {/* Header — stays put while the cards slide past */}
-        <div style={{ position: "relative", zIndex: 1, padding: "0 6%", marginBottom: "2rem" }}>
+        <div className="skills-header">
           <div style={{ position: "relative", display: "inline-block" }}>
-            <div style={{ padding: "1.5rem 3rem" }}>
-              <p className="text-sm uppercase tracking-widest text-gray-400 mb-2">Expertise</p>
-              <h2 className="text-4xl font-bold text-gray-900">Skills</h2>
+            <div className="skills-header__inner">
+              <p className="text-xs sm:text-sm uppercase tracking-widest text-gray-400 mb-1 sm:mb-2">Expertise</p>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">Skills</h2>
             </div>
           </div>
         </div>
@@ -566,13 +575,19 @@ export default function Skills() {
             zIndex: 1,
             overflowX: "clip",
             overflowY: "visible",
-            padding: "1.5rem 0",
+            padding: "clamp(0.35rem, 1.5vh, 1.5rem) 0",
             flex: pinned ? 1 : "none",
             minHeight: 0,
             display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "flex-start",
+            /* A ROW here, stretching its one child, is what gives the track a
+               definite height — and a definite height on the track is the only
+               thing that lets each card ask for `height: min(560px, 100%)` and
+               get a real number back. That is how a card ends up as tall as the
+               pinned stage on a laptop and as tall as a landscape phone's
+               screen on a landscape phone, instead of a fixed 560px that one of
+               them has to clip. */
+            flexDirection: "row",
+            alignItems: "stretch",
           }}
         >
           <div
@@ -580,8 +595,14 @@ export default function Skills() {
             style={{
               display: "flex",
               flexDirection: "row",
+              alignItems: "center",
               gap: `${CARD_GAP}px`,
               width: "max-content",
+              /* The track is wider than its container by design — that overrun
+                 IS the horizontal scroll. Without this the flex row would
+                 helpfully squeeze it back down to fit and there would be
+                 nothing left to slide. */
+              flexShrink: 0,
               paddingLeft: EDGE_PAD,
               paddingRight: EDGE_PAD,
               willChange: "transform",
@@ -595,13 +616,11 @@ export default function Skills() {
                   key={group.heading}
                   className="skill-card"
                   style={{
-                    flex: "0 0 auto",
-                    width: CARD_WIDTH,
-                    height: "min(560px, 60vh)",
-                    display: "flex",
-                    flexDirection: "column",
-                    padding: "2.6rem 2.9rem",
                     transform: `rotate(${col === 1 ? 0 : col === 0 ? -0.5 : 0.6}deg)`,
+                    /* Only when the section somehow isn't pinning: with no
+                       pinned stage there is no definite height for the card's
+                       `100%` to resolve against, so give it a real one. */
+                    ...(pinned ? null : { height: "min(560px, 60vh)" }),
                   }}
                 >
                   {/* Heading — fades in as the card enters */}
@@ -612,20 +631,10 @@ export default function Skills() {
                       transition: "opacity 0.6s ease, transform 0.6s ease",
                     }}
                   >
-                    <p
-                      style={{
-                        color: GRAPHITE_SOFT,
-                        fontSize: "0.7rem",
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
+                    <p className="skill-card__index">
                       {String(col + 1).padStart(2, "0")} / {String(groups.length).padStart(2, "0")}
                     </p>
-                    <h3 style={{ color: GRAPHITE, fontSize: "1.6rem", fontWeight: 700 }}>
-                      {group.heading}
-                    </h3>
+                    <h3 className="skill-card__heading">{group.heading}</h3>
                   </div>
 
                   {/* Scatter board — icons are absolutely placed within it */}
@@ -649,7 +658,10 @@ export default function Skills() {
                             left: `${pos.x}%`,
                             top: `${pos.y}%`,
                             "--rot": `${pos.rot}deg`,
-                            "--icon": `calc(clamp(46px, 5vw, 82px) * ${pos.mult})`,
+                            // Base size is a CSS variable on the board so a
+                            // media query can retune every icon at once for a
+                            // screen with no height to spare.
+                            "--icon": `calc(var(--icon-base) * ${pos.mult})`,
                           })}
                         >
                           <div className="skill-icon">

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
+import { planeLayout } from "./gameLayout";
 
 // Phaser touches window/document at import time, so it must never be
 // imported on the server. GameCanvas itself also does a dynamic
@@ -9,8 +10,18 @@ import dynamic from "next/dynamic";
 // means Next won't even try to SSR it.
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 
+/* The plane's size on the page, at full width. It shrinks with the viewport —
+   see `displaySize` below — and this is its ceiling, not its size. */
 const DISPLAY_SIZE = 200;
-const SECTION_HEIGHT = 180;
+/* …and its floor. A plane much smaller than this is no longer an obvious thing
+   to tap. */
+const MIN_DISPLAY_SIZE = 96;
+/* Fraction of the viewport width the plane is allowed to take up. At 200px on a
+   360px phone it was over half the screen. */
+const DISPLAY_SIZE_VW = 0.26;
+/* The strip it flies through, as a fraction of the plane itself, so the two
+   always look proportionate. */
+const SECTION_RATIO = 0.9;
 const PLANE_START_X = 10;
 const SCROLL_DISTANCE_FACTOR = 1;
 const FLIGHT_START_OFFSET = 1;
@@ -47,8 +58,6 @@ function angleToRestrictedFrame(deg: number): number {
   const step = Math.round(a / (360 / FLIP_USABLE_COUNT)) % FLIP_USABLE_COUNT;
   return FLIP_SKIP_FRAMES + step;
 }
-
-const PLANE_GAME_SIZE = 110;
 
 // ── LOOP-THE-LOOP FLIGHT PATH ──────────────────────────
 const LIFTOFF_DURATION = 400;         // ← ms for the liftoff curve (PATH_LP0 → PATH_LP3), independent of the loop
@@ -174,6 +183,31 @@ export default function PlaneTransition() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const planeImgRef = useRef<HTMLDivElement>(null);
 
+  /* The plane's size on the page. Kept in BOTH a state (for rendering) and a
+     ref (for the rAF flight loops and the scroll handler, which run outside
+     React and must not be torn down and rebuilt every time the window is
+     nudged). */
+  const [displaySize, setDisplaySize] = useState(DISPLAY_SIZE);
+  const displaySizeRef = useRef(DISPLAY_SIZE);
+
+  useEffect(() => {
+    const update = () => {
+      const next = Math.round(
+        Math.min(DISPLAY_SIZE, Math.max(MIN_DISPLAY_SIZE, window.innerWidth * DISPLAY_SIZE_VW))
+      );
+      if (next === displaySizeRef.current) return;
+      displaySizeRef.current = next;
+      setDisplaySize(next);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []);
+
   const [planeX, setPlaneX] = useState(-DISPLAY_SIZE);
   const [planeYOffset, setPlaneYOffset] = useState(0);
   const [trails, setTrails] = useState<Trail[]>([]);
@@ -239,7 +273,7 @@ export default function PlaneTransition() {
         (rawProgress - FLIGHT_START_OFFSET * 0.1) / SCROLL_DISTANCE_FACTOR
       ));
 
-      const newX = PLANE_START_X + prog * (window.innerWidth + DISPLAY_SIZE * 2);
+      const newX = PLANE_START_X + prog * (window.innerWidth + displaySizeRef.current * 2);
       setPlaneX(newX);
 
       const flipStep = prog * MANEUVER_STEPS_PER_SCROLL;
@@ -279,11 +313,13 @@ export default function PlaneTransition() {
   }, []);
 
   // ── MEASURE #game-area FOR PHASER ─────────────────────
-  // Only needs to run once the frame has actually arrived and settled,
-  // since that's the only time Phaser is mounted. A ResizeObserver keeps
-  // it correct across window resizes too.
+  // Measured from the moment the frame starts sliding in — not just once it
+  // has arrived. Phaser only mounts on arrival, but the CSS plane that covers
+  // the handoff is placed from this too, and if the first size it sees is zero
+  // it flashes at its full desktop size for a frame before snapping down.
+  // A ResizeObserver keeps it correct across resizes and rotation.
   useEffect(() => {
-    if (phase !== "arrived") return;
+    if (phase === "idle") return;
     const el = gameAreaRef.current;
     if (!el) return;
 
@@ -341,9 +377,10 @@ export default function PlaneTransition() {
   useEffect(() => {
     if (phase !== "flipping") return;
 
+    const size = displaySizeRef.current;
     const centerStart: Vec = {
-      x: frozenX.current + DISPLAY_SIZE / 2,
-      y: frozenY.current + DISPLAY_SIZE / 2,
+      x: frozenX.current + size / 2,
+      y: frozenY.current + size / 2,
     };
     // Measure the REAL gameframe destination up front, correcting for the
     // frame's current slide-in transform, so the loop path's own end point
@@ -351,7 +388,6 @@ export default function PlaneTransition() {
     // for a separate "fly into place" tween after the loop, which was the
     // source of the twitch (its start point never quite matched where the
     // loop actually ended).
-    const targetScale = PLANE_GAME_SIZE / DISPLAY_SIZE;
 
     // Re-measured every frame — not just once — so the destination always
     // matches the gameframe's REAL current rest position, even if the
@@ -359,7 +395,12 @@ export default function PlaneTransition() {
     // things right after the click. This is what removes the teleport:
     // the tween's own final frame IS the real position, not a one-time
     // estimate taken before everything had settled.
-    const measureCenterEnd = (): Vec => {
+    /* Returns both the destination and the scale to arrive at, because on a
+       small screen those are no longer independent: the play area decides how
+       big the plane is when it lands (planeLayout), and the plane has to be
+       exactly that big at exactly that spot or the swap to the Phaser sprite
+       shows as a jump. */
+    const measureTarget = (): { center: Vec; scale: number } => {
       const gameAreaEl = document.getElementById("game-area");
       const wrapperEl = frameWrapperRef.current;
       if (gameAreaEl && wrapperEl) {
@@ -368,15 +409,20 @@ export default function PlaneTransition() {
         const liveTranslateX = matrix.m41;
         const restLeft = liveRect.left - liveTranslateX;
         const restTop = liveRect.top;
+        const p = planeLayout(liveRect.width, liveRect.height);
         return {
-          x: restLeft + 50 + PLANE_GAME_SIZE / 2,
-          y: restTop + 150 + PLANE_GAME_SIZE / 2,
+          center: { x: restLeft + p.left + p.size / 2, y: restTop + p.top + p.size / 2 },
+          scale: p.size / size,
         };
       }
       // Fallback only used on the rare chance game-area isn't mounted yet.
+      const p = planeLayout(window.innerWidth * 0.9, window.innerHeight * 0.72);
       return {
-        x: window.innerWidth * 0.29 + (DISPLAY_SIZE * targetScale) / 2,
-        y: window.innerHeight / 2 - DISPLAY_SIZE / 1.7 + (DISPLAY_SIZE * targetScale) / 2,
+        center: {
+          x: window.innerWidth * 0.29 + p.size / 2,
+          y: window.innerHeight / 2 - size / 1.7 + p.size / 2,
+        },
+        scale: p.size / size,
       };
     };
 
@@ -388,16 +434,16 @@ export default function PlaneTransition() {
       const rawP = Math.min(1, (now - startTime) / totalDuration);
       const s = easeLenis(rawP);
 
-      const centerEnd = measureCenterEnd();
-      const toScreen = buildFlightTransform(centerStart, centerEnd);
+      const target = measureTarget();
+      const toScreen = buildFlightTransform(centerStart, target.center);
 
       const { pt, angle } = samplePath(s);
       const screenPt = toScreen(pt);
-      const curScale = 1 + (targetScale - 1) * s;
+      const curScale = 1 + (target.scale - 1) * s;
       const rotationDeg = ((angle - baselineAngle) * 180) / Math.PI;
 
-      setTweenX(screenPt.x - DISPLAY_SIZE / 2);
-      setTweenY(screenPt.y - DISPLAY_SIZE / 2);
+      setTweenX(screenPt.x - size / 2);
+      setTweenY(screenPt.y - size / 2);
       setTweenScale(curScale);
       setTweenRotate(0);
       setFlipFrame(angleToRestrictedFrame(rotationDeg));
@@ -425,17 +471,26 @@ export default function PlaneTransition() {
   useEffect(() => {
     if (phase !== "returning") return;
 
+    const size = displaySizeRef.current;
     const gameAreaEl = document.getElementById("game-area");
-    const startRect = gameAreaEl ? gameAreaEl.getBoundingClientRect() : { left: 0, top: 0 };
-    const centerStart: Vec = { x: startRect.left + 50 + PLANE_GAME_SIZE / 2, y: startRect.top + 150 + PLANE_GAME_SIZE / 2 };
-    const centerEnd: Vec = { x: frozenX.current + DISPLAY_SIZE / 2, y: frozenY.current + DISPLAY_SIZE / 2 };
+    const startRect = gameAreaEl
+      ? gameAreaEl.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    // Take off from exactly where the Phaser plane is parked — same helper, so
+    // the same answer.
+    const p = planeLayout(startRect.width, startRect.height);
+    const centerStart: Vec = {
+      x: startRect.left + p.left + p.size / 2,
+      y: startRect.top + p.top + p.size / 2,
+    };
+    const centerEnd: Vec = { x: frozenX.current + size / 2, y: frozenY.current + size / 2 };
     const toScreen = buildFlightTransform(centerEnd, centerStart);
     const baselineAngle = samplePath(0).angle;
-    const targetScale = PLANE_GAME_SIZE / DISPLAY_SIZE;
+    const targetScale = p.size / size;
     const startTime = performance.now();
 
-    setTweenX(centerStart.x - DISPLAY_SIZE / 2);
-    setTweenY(centerStart.y - DISPLAY_SIZE / 2);
+    setTweenX(centerStart.x - size / 2);
+    setTweenY(centerStart.y - size / 2);
     setTweenScale(targetScale);
     setTweenVisible(true);
 
@@ -445,8 +500,8 @@ export default function PlaneTransition() {
 
       const { pt, angle } = samplePath(s);
       const screenPt = toScreen(pt);
-      setTweenX(screenPt.x - DISPLAY_SIZE / 2);
-      setTweenY(screenPt.y - DISPLAY_SIZE / 2);
+      setTweenX(screenPt.x - size / 2);
+      setTweenY(screenPt.y - size / 2);
       setTweenScale(1 + (targetScale - 1) * s);
       // This tilts the nose UP (-90) and does a 360 spin at the same time
       // Math.min(1, rawP * 3) makes the rotation finish in the first 33% of the flight
@@ -496,13 +551,16 @@ export default function PlaneTransition() {
   }, [phase]);
   const flipCol = flipFrame % FLIP_COLS;
   const flipRow = Math.floor(flipFrame / FLIP_COLS);
+  // Where the CSS plane parks inside the play area, and how big it is there —
+  // the exact spot GameCanvas will put the Phaser sprite.
+  const handoff = planeLayout(gameAreaSize.width, gameAreaSize.height);
 
   return (
     <>
       {/* ── SCROLL SECTION ── */}
       <div ref={sectionRef} style={{
         position: "relative",
-        height: `${SECTION_HEIGHT}px`,
+        height: `${Math.round(displaySize * SECTION_RATIO)}px`,
         width: "100%",
         overflow: "hidden",
       }}>
@@ -523,7 +581,8 @@ export default function PlaneTransition() {
         {trails.map((trail) => (
           <span key={trail.id} style={{
             position: "absolute", top: "50%",
-            left: trail.x, fontSize: `${TRAIL_FONT_SIZE}px`,
+            left: trail.x,
+            fontSize: `${Math.round(TRAIL_FONT_SIZE * (displaySize / DISPLAY_SIZE))}px`,
             color: "rgba(0,0,0,0.35)", fontWeight: "bold",
             lineHeight: 1, pointerEvents: "none", userSelect: "none",
             animation: `planeTrailWiggle ${TRAIL_WIGGLE_DURATION * (0.7 + trail.seed * 0.6)}s ease-in-out infinite`,
@@ -542,8 +601,10 @@ export default function PlaneTransition() {
               top: `calc(50% + ${planeYOffset}px)`,
               transform: "translateY(-50%)",
               left: planeX,
-              width: DISPLAY_SIZE, height: DISPLAY_SIZE,
+              width: displaySize, height: displaySize,
               cursor: "pointer", imageRendering: "pixelated",
+              // A 200px plane is a generous tap target; a 96px one still is.
+              touchAction: "manipulation",
               backgroundImage: "url('/flip.png')",
               backgroundSize: `${FLIP_COLS * 100}% ${FLIP_ROWS * 100}%`,
               backgroundPosition: `${(flipFrame % FLIP_COLS) * (100 / (FLIP_COLS - 1))}% ${Math.floor(flipFrame / FLIP_COLS) * (100 / (FLIP_ROWS - 1))}%`,
@@ -558,8 +619,8 @@ export default function PlaneTransition() {
           position: "fixed",
           left: tweenX,
           top: tweenY,
-          width: DISPLAY_SIZE,
-          height: DISPLAY_SIZE,
+          width: displaySize,
+          height: displaySize,
           zIndex: 9999,
           pointerEvents: "none",
           transform: `scale(${tweenScale}) rotate(${tweenRotate}deg)`,
@@ -582,6 +643,12 @@ export default function PlaneTransition() {
         <div style={{
           position: "fixed", inset: 0, zIndex: 100,
           display: "flex", alignItems: "center", justifyContent: "center",
+          /* Centre the frame in the space BELOW the header, not in the whole
+             window. The navbar sits at z-index 9999 and this overlay at 100, so
+             anything that reaches up behind the bar is simply covered by it —
+             on a laptop that clipped the top of the frame, and on a phone held
+             sideways it ate the score and the back button with it. */
+          paddingTop: "var(--header-h)",
           backgroundColor: "transparent",
           pointerEvents: phase === "flipping" ? "none" : "auto",
         }}>
@@ -591,13 +658,24 @@ export default function PlaneTransition() {
             position: "relative",
             display: "inline-block",
           }}>
+            {/* The frame is a 4:3 drawing. `maxHeight` alone sizes it off the
+                screen's HEIGHT and lets the width fall where it may — which on
+                a phone in portrait means an 840px-wide frame on a 390px screen,
+                three quarters of the game hanging off the side. Constrain both
+                axes and let the intrinsic ratio pick whichever limit bites
+                first: height on a desktop, width on a phone. */}
             <img
               src="/gameframe.png"
               alt="frame"
               style={{
                 display: "block", imageRendering: "pixelated",
                 pointerEvents: "none", position: "relative",
-                zIndex: 3, maxHeight: "80vh", width: "auto",
+                zIndex: 3,
+                // …and the height it may claim is the room left below the
+                // header, for the same reason.
+                maxHeight: "calc(var(--svh) * 92 - var(--header-h))",
+                maxWidth: "96vw",
+                width: "auto", height: "auto",
               }}
             />
 
@@ -616,10 +694,15 @@ export default function PlaneTransition() {
                   Phaser has booted. Once Phaser mounts (phase === "arrived"
                   && gameAreaSize is measured) this fades out and the canvas
                   takes over — the "back" control lives inside the Phaser
-                  scene from that point on. */}
+                  scene from that point on.
+
+                  Placed by the same helper the Phaser sprite uses, so the two
+                  are on top of each other to the pixel at every screen size and
+                  the cross-fade between them shows nothing. */}
               <div style={{
-                position: "absolute", left: 50, top: 150,
-                width: PLANE_GAME_SIZE, height: PLANE_GAME_SIZE,
+                position: "absolute",
+                left: handoff.left, top: handoff.top,
+                width: handoff.size, height: handoff.size,
                 imageRendering: "pixelated",
                 pointerEvents: "none", zIndex: 2,
                 backgroundImage: "url('/flip.png')",

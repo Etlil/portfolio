@@ -21,9 +21,50 @@ body {
 html {
   scroll-behavior: auto;
   /* Omori is a pixel font that reads small at normal sizes — scale the whole
-     site up. Everything is rem-based, so this enlarges all text at once. */
+     site up. Everything is rem-based, so this enlarges all text at once.
+
+     …and scale it back down as the screen shrinks. This one number is the
+     site's master type scale, so stepping it per breakpoint shrinks every
+     heading, gap and rem-based box at once, in proportion, without touching a
+     single component. */
   font-size: 118%;
+
+  /* Nothing is allowed to widen the page. `clip` rather than `hidden` on
+     purpose: `hidden` would turn <html> into a scroll container, and an
+     ancestor scroll container silently kills every `position: sticky` on the
+     page — which is the entire Projects and Skills pinning mechanism. `clip`
+     trims the overflow without creating one. */
+  overflow-x: clip;
 }
+
+/* ── VIEWPORT HEIGHT ──
+   `100vh` on a phone means the LARGE viewport — the height the page would have
+   if the browser chrome were hidden — so a full-screen section is always taller
+   than what you can actually see, and the bottom of it sits under the address
+   bar. `svh` is the small viewport: the height that is genuinely visible with
+   the chrome showing, and (unlike `dvh`) it never changes as the bar slides
+   away, so nothing reflows mid-scroll.
+
+   Exposed as a unit-sized variable so it can be multiplied inline —
+   `calc(var(--svh) * 100)` is this file's `100vh`. The plain `1vh` line is the
+   fallback for browsers without svh; the @supports block upgrades it. */
+:root { --svh: 1vh; }
+@supports (height: 1svh) {
+  :root { --svh: 1svh; }
+}
+
+/* Measured by Navbar.tsx and written to the document element, so every section
+   can hold its content clear of the fixed header without guessing at a number
+   that changes with the breakpoint. The value here is only the pre-hydration
+   fallback. */
+:root { --header-h: 132px; }
+
+@media (max-width: 1280px) { html { font-size: 112%; } }
+@media (max-width: 900px)  { html { font-size: 106%; } }
+@media (max-width: 600px)  { html { font-size: 100%; } }
+/* A phone on its side has ~360px of height to spend on the whole page. Type is
+   the cheapest thing to give back. */
+@media (max-height: 500px) and (orientation: landscape) { html { font-size: 94%; } }
 
 html.lenis, html.lenis body {
   height: auto;
@@ -151,7 +192,7 @@ html.dark .skill-card p { color: var(--ink-day, #3f3d3a) !important; }
 @layer base {
   body {
     background-color: var(--paper);
-    min-height: 100vh;
+    min-height: calc(var(--svh) * 100);
     position: relative;
   }
 
@@ -161,12 +202,15 @@ html.dark .skill-card p { color: var(--ink-day, #3f3d3a) !important; }
     top: 0;
     left: 0;
     width: 100%;
-    height: max(100vh, 100%);
-    min-height: 100vh;
+    height: max(calc(var(--svh) * 100), 100%);
+    min-height: calc(var(--svh) * 100);
     background-image:
       url("/paper.svg"),
       linear-gradient(var(--rule-line) 2.5px, transparent 2.5px);
-    background-size: 500px 500px, 100% 40px;
+    /* The ruled lines are drawn at the type scale, not at a fixed pixel pitch,
+       so the paper keeps looking like the same sheet of paper as the text on it
+       shrinks. */
+    background-size: 500px 500px, 100% 2.5rem;
     background-repeat: repeat, repeat;
     pointer-events: none;
     z-index: -1;
@@ -183,7 +227,7 @@ html.dark .skill-card p { color: var(--ink-day, #3f3d3a) !important; }
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    height: 100vh !important;
+    height: calc(var(--svh) * 100) !important;
   }
 
 }
@@ -229,6 +273,71 @@ body.game-returning #main-content {
   flex: 1;
   min-height: 0;
   margin-top: 1rem;
+  /* Every icon on the board is a multiple of this, so one declaration resizes
+     the whole scatter. The JS separation pass measures the icons' REAL widths
+     after layout, so it re-spaces them to match whatever this resolves to. */
+  --icon-base: clamp(40px, 5.2vw, 82px);
+}
+
+/* ── SKILLS, SIZED TO THE SCREEN ──
+   The card is a torn scrap of paper whose proportions have to survive from a
+   360px phone to a 1920px desktop. Everything that decides how much room the
+   icons get is expressed here rather than inline, so one media query can retune
+   the whole board.
+
+   Width is deliberately a fraction of the viewport (not a fixed size): three
+   cards at 75vw always overrun any screen, which is what guarantees the section
+   has something to scroll horizontally and therefore always pins.
+
+   Height is `100%` of the pinned viewport rather than a fixed 560px, so a
+   landscape phone with 340px of room gets a 340px card instead of a 560px one
+   clipped in half. */
+.skill-card {
+  flex: 0 0 auto;
+  width: max(300px, 75vw);
+  height: min(560px, 100%);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.15rem, 3.4vw, 2.6rem) clamp(1.25rem, 3.8vw, 2.9rem);
+}
+
+.skill-card__index {
+  color: var(--ink-soft);
+  font-size: clamp(0.6rem, 1.6vw, 0.7rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.skill-card__heading {
+  color: var(--ink);
+  font-size: clamp(1.05rem, 3.4vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+/* The pinned header ("EXPERTISE / Skills"). Its padding is pure breathing room,
+   which is the first thing to give back on a short screen. */
+.skills-header {
+  position: relative;
+  z-index: 1;
+  padding: 0 6%;
+  margin-bottom: clamp(0.5rem, 2.5vh, 2rem);
+}
+.skills-header__inner {
+  padding: clamp(0.35rem, 1.6vh, 1.5rem) clamp(0.5rem, 4vw, 3rem);
+}
+
+/* A landscape phone gives the whole pinned stage about 260px of height. The
+   card keeps its proportions by giving back padding and icon size together. */
+@media (max-height: 560px) {
+  .skill-card { padding: 0.9rem 1.1rem; min-height: 150px; }
+  .skill-board {
+    margin-top: 0.4rem;
+    --icon-base: clamp(30px, 3.6vw, 52px);
+  }
+  .skill-chip { padding: 0.5rem; }
 }
 
 /* Absolutely placed (left/top set inline). Padding gives the zoom room to grow
@@ -510,3 +619,103 @@ body.game-active .amb-dark { opacity: 0; }
 }
 
 
+
+/* ── THE HEADER, AT EVERY WIDTH ──
+   The bar's real height is measured at runtime and published as `--header-h`
+   (see Navbar.tsx), because every section below has to hold its first line of
+   text clear of it and the number changes with the breakpoint, with the font
+   scale, and again the moment the mobile menu is opened.
+
+   The torn edge is a 947×53 PNG stretched to the full width, so its height is
+   the one thing that has to be dialled back by hand — at phone widths the
+   original 60px is a sixth of the visible page. */
+.nav-tear-wrap {
+  height: 60px;
+  margin-top: -10px;
+}
+@media (max-width: 900px) {
+  .nav-tear-wrap { height: 42px; margin-top: -8px; }
+}
+@media (max-width: 600px) {
+  .nav-tear-wrap { height: 32px; margin-top: -6px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .nav-tear-wrap { height: 26px; margin-top: -6px; }
+}
+
+/* The mobile menu can run past the bottom of a landscape phone. Let it scroll
+   inside itself rather than pushing the torn edge off the screen. */
+.nav-mobile-menu {
+  max-height: calc(var(--svh) * 100 - 7rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── SECTION SPACING ──
+   `--section-top` is what every section uses to clear the fixed header: the
+   header's own measured height plus a breath that shrinks on short screens.
+   One variable, so nothing has to hard-code a padding that goes wrong the
+   moment the header changes size. */
+:root {
+  --section-top: calc(var(--header-h) + clamp(0.75rem, 3vh, 2.5rem));
+}
+
+/* ── FULL-HEIGHT SECTIONS ──
+   Written as classes rather than inline styles because they need the `vh`
+   fallback line ahead of the `svh` one, and a React style object can only hold
+   one value per property. */
+.section-screen {
+  min-height: 100vh;
+  min-height: calc(var(--svh) * 100);
+}
+.stage-screen {
+  height: 100vh;
+  height: calc(var(--svh) * 100);
+}
+
+/* ── TOUCH ──
+   A hover label can never unfurl on a touch screen, and leaving the hover rules
+   live means the LAST icon tapped stays stuck in its lit, zoomed, labelled
+   state until something else is tapped. Turn the whole hover treatment off
+   where there is no real pointer; the scroll-driven `.is-lit` still lights
+   every icon on the way past. */
+@media (hover: none) {
+  .skill-chip:hover .skill-label { opacity: 0; }
+  .skill-chip:hover .skill-icon { transform: rotate(var(--rot, 0deg)); }
+  .skill-chip:hover .skill-img {
+    filter: grayscale(1) brightness(1.05);
+  }
+  .skill-chip.is-lit:hover .skill-img {
+    filter: grayscale(0) brightness(1) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
+  }
+}
+
+/* ── FORM FIELDS ON iOS ──
+   Safari zooms the whole page in whenever a focused field's text is under 16px,
+   and there is no way back out of that zoom. 16px is the floor, so the fields
+   opt out of the site's type scale at phone sizes only. */
+@media (max-width: 900px) {
+  .contact-ink,
+  input.contact-ink,
+  textarea.contact-ink {
+    font-size: 16px;
+  }
+}
+
+/* ── ABOUT'S STATS FRAME ──
+   A square, because frame2.png is drawn as one. Left at `width: 100%` it stays
+   square all the way down — which on a landscape phone means a 700px-tall panel
+   holding four lines of text, twice the height of the screen it is on. Once the
+   two columns stack, cap it against both the reading width and the viewport's
+   own height so it can never be taller than the screen. */
+.about-panel {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+@media (max-width: 767px) {
+  .about-panel {
+    width: min(100%, 26rem, calc(var(--svh) * 62));
+    margin-inline: auto;
+  }
+}

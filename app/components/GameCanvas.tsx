@@ -1,11 +1,52 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { gameScale, planeLayout } from "./gameLayout";
 
 // Keep these in sync with the sprite sheet used by PlaneTransition.tsx
 const FLIP_COLS = 3;
 const FLIP_ROWS = 3;
 const FLIP_FRAME_W = 640; // native size of ONE frame in flip.png (edit to match your actual sheet)
 const FLIP_FRAME_H = 640;
+
+/* ── EVERY TUNED NUMBER IN THE GAME, AT SCALE 1 ──
+   Each of these was dialled in against the reference play area in
+   gameLayout.ts, and each is multiplied by that file's scale factor before it
+   is used. Gathering them here rather than leaving them inline is what makes it
+   possible to state the rule once: lengths scale, and so do the physics, which
+   are lengths per second (and per second squared). Times and ratios — spawn
+   delays, the flap frame rate, the rotation clamp — do not, because they are
+   not lengths, and scaling them would change the game rather than its size.
+
+   The result is a game that plays identically on a phone and a desktop: same
+   arcs, same reaction times, same difficulty. Only the drawing is smaller. */
+const BASE = {
+  gravity: 1000,          // px/s² downward
+  thrustAccel: 1800,      // px/s² while held
+  tapImpulse: -300,       // px/s added on each tap
+  maxRiseSpeed: -420,     // px/s ceiling on climb
+  obstacleSpeed: 160,     // px/s leftwards
+  obstacleScale: 0.4,     // multiplier on obs.png's native size
+  obstacleMarginRight: 60,// px offscreen it spawns
+  obstacleDespawnX: -100, // px offscreen it is destroyed
+  cloudSpeedMin: 70,      // px/s
+  cloudSpeedMax: 71,
+  cloudMargin: 150,       // px offscreen clouds spawn/despawn
+  scoreFont: 24,          // px
+  bestFont: 14,
+  startFont: 20,
+  gameOverFont: 22,
+  backIcon: 24,           // px square
+  backInset: 10,          // px from the top-left corner
+};
+
+/* Type has a hard floor: 11px is legible, 7px is a smudge. This is the one
+   place the scale rule is deliberately broken, because a pixel is a pixel
+   however big the canvas is. */
+const MIN_FONT = 11;
+/* …and the back button has a floor too, but a different one: it has to stay big
+   enough to hit with a fingertip. */
+const MIN_BACK_ICON = 26;
+const px = (n: number) => `${Math.round(n)}px`;
 
 interface GameCanvasProps {
   width: number;
@@ -37,17 +78,33 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
 
         clouds!: Phaser.GameObjects.Group;
         cloudTimer!: Phaser.Time.TimerEvent;
-        cloudSpawnY = { min: 20, max: 0 }; // max gets set in create() once `height` is known in scope
+        cloudSpawnY = { min: 20, max: 0 }; // max gets set in layout() once the canvas size is known
 
         obstacles!: Phaser.Physics.Arcade.Group;
         obstacleTimer!: Phaser.Time.TimerEvent;
         isGameOver = false;
         gameOverText!: Phaser.GameObjects.Text;
+        backBtn!: Phaser.GameObjects.Image;
+        // The canvas size layout() last ran against, so the next run knows how
+        // far everything has to move.
+        lastW = 0;
+        lastH = 0;
 
         score = 0;
         scoreText!: Phaser.GameObjects.Text;
         highScore = 0;
         highScoreText!: Phaser.GameObjects.Text;
+
+        /* The canvas's CURRENT size, read fresh every time rather than captured
+           from the props at mount. The game outlives any one size: the play
+           area is a percentage of a frame that is itself a percentage of the
+           window, so it changes on every resize and on every rotation. Reading
+           through the scale manager means one resize handler re-lays-out
+           everything instead of each spawn remembering a stale number. */
+        get W() { return this.scale.width; }
+        get H() { return this.scale.height; }
+        /** Everything in the game is a multiple of this — see gameLayout.ts. */
+        get s() { return gameScale(this.scale.width, this.scale.height); }
 
         preload() {
           this.load.spritesheet("plane", "/flip.png", {
@@ -57,7 +114,107 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
           this.load.image("cloud1", "/cloud1.png");
           this.load.image("cloud2", "/cloud2.png");
           this.load.image("obs", "/obs.png");
-          this.load.svg("backIcon", "/back.svg", { width: 24, height: 24 });
+          // Rasterised well above the size it is drawn at, so scaling it DOWN
+          // for a small canvas stays crisp instead of blurring an already-tiny
+          // 24px bitmap back up on a desktop.
+          this.load.svg("backIcon", "/back.svg", { width: 96, height: 96 });
+        }
+
+        /* ── EVERYTHING THAT DEPENDS ON THE CANVAS SIZE ──
+           Called once from create() and again on every resize, so a rotation or
+           a window drag re-places the HUD, re-sizes the plane and re-anchors the
+           obstacles instead of leaving them laid out for a canvas that no longer
+           exists. Nothing here touches game STATE — only where things are and
+           how big they are — so it is safe to run mid-game. */
+        layout() {
+          const s = this.s;
+          const W = this.W;
+          const H = this.H;
+
+          /* How much the canvas changed by. Everything already in play is moved
+             by this ratio so a rotation or a window drag carries the game with
+             it rather than leaving the plane and the obstacles at coordinates
+             that are now off the edge — where `collideWorldBounds` cannot help,
+             because a body already fully outside the bounds never collides with
+             them on the way back in. */
+          const rx = this.lastW ? W / this.lastW : 1;
+          const ry = this.lastH ? H / this.lastH : 1;
+          this.lastW = W;
+          this.lastH = H;
+
+          this.physics.world.setBounds(0, 0, W, H);
+          this.cloudSpawnY.min = 20 * s;
+          this.cloudSpawnY.max = H * 0.4;
+
+          const plane = planeLayout(W, H);
+          this.plane.setDisplaySize(plane.size, plane.size);
+          if (this.isStarted) {
+            // Mid-flight: carry it across proportionally, then make sure it is
+            // still inside the new bounds.
+            this.plane.setPosition(
+              Phaser.Math.Clamp(this.plane.x * rx, plane.size / 2, W - plane.size / 2),
+              Phaser.Math.Clamp(this.plane.y * ry, plane.size / 2, H - plane.size / 2)
+            );
+          } else {
+            // Not started yet — it belongs at the spot the flight handed it over
+            // at, which is where PlaneTransition's CSS plane also sits.
+            this.plane.setPosition(plane.left + plane.size / 2, plane.top + plane.size / 2);
+          }
+
+          // Fonts: scaled, but never below the point where they stop being
+          // readable at all.
+          this.scoreText.setFontSize(px(Math.max(MIN_FONT, BASE.scoreFont * s)));
+          this.highScoreText.setFontSize(px(Math.max(MIN_FONT, BASE.bestFont * s)));
+          this.startText.setFontSize(px(Math.max(MIN_FONT, BASE.startFont * s)));
+          this.gameOverText.setFontSize(px(Math.max(MIN_FONT, BASE.gameOverFont * s)));
+
+          /* The HUD stacks by MEASUREMENT, not by two scaled constants. Once
+             the type stops shrinking at its floor but the positions carry on
+             scaling, a small canvas has the two lines growing into each other —
+             so put the second one directly under the first, whatever height the
+             first turned out to be. */
+          this.scoreText.setPosition(W / 2, Math.max(6, 20 * s));
+          this.highScoreText.setPosition(
+            W / 2,
+            this.scoreText.y + this.scoreText.height + 6 * s
+          );
+          this.startText.setPosition(W / 2, H / 2 + 60 * s);
+          this.gameOverText.setPosition(W / 2, H / 2);
+
+          const back = Math.max(MIN_BACK_ICON, BASE.backIcon * s);
+          this.backBtn.setDisplaySize(back, back);
+          this.backBtn.setPosition(BASE.backInset * s, BASE.backInset * s);
+          // The hit area is defined against the source image, so it follows the
+          // display size automatically — but on a touch screen a 26px icon is
+          // still a small target, so pad the interactive area outwards.
+          const padSrc = (this.backBtn.width * 0.35) | 0;
+          this.backBtn.setInteractive(
+            new Phaser.Geom.Rectangle(
+              -padSrc,
+              -padSrc,
+              this.backBtn.width + padSrc * 2,
+              this.backBtn.height + padSrc * 2
+            ),
+            Phaser.Geom.Rectangle.Contains
+          );
+
+          /* Physics are lengths per unit time, so they scale with the geometry —
+             otherwise a phone-sized canvas would have the plane crossing its own
+             height in a fraction of the time it takes on a desktop, and no
+             amount of tapping could keep up. */
+          (this.physics.world.gravity as Phaser.Math.Vector2).y = BASE.gravity * s;
+
+          // Obstacles already in flight were sized and anchored for the old
+          // canvas; bring them with us rather than leaving them floating.
+          this.obstacles.getChildren().forEach((child) => {
+            const o = child as Phaser.Physics.Arcade.Sprite;
+            if (!o.active) return;
+            const fromTop = o.originY === 0;
+            o.setScale(BASE.obstacleScale * s);
+            o.x *= rx;
+            o.y = fromTop ? 1 : H - 1;
+            (o.body as Phaser.Physics.Arcade.Body).setVelocityX(-BASE.obstacleSpeed * s);
+          });
         }
 
         create() {
@@ -66,13 +223,21 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
           this.isThrusting = false;
 
           this.physics.resume();
-          this.physics.world.setBounds(0, 0, width, height);
 
-          const PLANE_SIZE = 110; // ← keep in sync with PLANE_GAME_SIZE in PlaneTransition.tsx
-          const startX = 50 + (PLANE_SIZE / 2);
-          const startY = 150 + (PLANE_SIZE / 2);
-          this.plane = this.physics.add.sprite(startX, startY, "plane", startFrame);
-          this.plane.setDisplaySize(PLANE_SIZE, PLANE_SIZE);
+          /* The plane's size and start position come from the shared helper, not
+             from constants of their own — PlaneTransition places its CSS plane
+             from the very same call, so the moment this canvas appears the two
+             planes are exactly on top of each other and the handoff is
+             invisible. Duplicating the numbers here is what used to make that
+             swap visible on any screen that wasn't the one they were tuned on. */
+          const plane = planeLayout(this.W, this.H);
+          this.plane = this.physics.add.sprite(
+            plane.left + plane.size / 2,
+            plane.top + plane.size / 2,
+            "plane",
+            startFrame
+          );
+          this.plane.setDisplaySize(plane.size, plane.size);
           this.plane.setDepth(1); // explicit: always above clouds (-1), regardless of add order
 
           if (!this.anims.exists("planeFlap")) {
@@ -94,26 +259,27 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
 
           this.clouds = this.add.group();
 
-          // Visual debug outline for the cloud spawn band — purely a dev
-          // aid, drawn once and never interacted with. Delete this whole
-          // graphics block once you're happy with the spawn area and don't
-          // need to see it anymore.
-          this.cloudSpawnY.max = height * 0.4;
+          /* Positions and sizes below are placeholders — layout() sets the real
+             ones at the end of create(), and again on every resize. Creating
+             them at zero-ish and immediately laying out is what keeps a single
+             piece of code responsible for where things go. */
+          // A finger is not a mouse: say so when there is no mouse to click.
+          const tapWord = this.sys.game.device.input.touch ? "TAP" : "CLICK";
+          this.startText = this.add.text(0, 0, `${tapWord} TO START`, {
+            fontFamily: "monospace", fontSize: "20px", color: "#000000",
+          }).setOrigin(0.5);
 
-          this.startText = this.add.text(width / 2, height / 2 + 60, "CLICK TO START", {
-          fontFamily: "monospace", fontSize: "20px", color: "#000000"}).setOrigin(0.5);
-
-          this.gameOverText = this.add.text(width / 2, height / 2, "CLICK TO RESTART", {
+          this.gameOverText = this.add.text(0, 0, `${tapWord} TO RESTART`, {
             fontFamily: "monospace", fontSize: "22px", color: "#000000",
           }).setOrigin(0.5).setDepth(1000).setVisible(false);
 
           this.score = 0;
-          this.scoreText = this.add.text(width / 2, 20, "0", {
+          this.scoreText = this.add.text(0, 0, "0", {
             fontFamily: "monospace", fontSize: "24px", color: "#000000",
           }).setOrigin(0.5, 0).setDepth(1000);
 
           this.highScore = Number(localStorage.getItem("planeGameHighScore") || 0);
-          this.highScoreText = this.add.text(width / 2, 50, `BEST: ${this.highScore}`, {
+          this.highScoreText = this.add.text(0, 0, `BEST: ${this.highScore}`, {
             fontFamily: "monospace", fontSize: "14px", color: "#000000",
           }).setOrigin(0.5, 0).setDepth(1000);
 
@@ -148,16 +314,25 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
           this.input.keyboard!.on("keydown-SPACE", () => this.startThrust());
           this.input.keyboard!.on("keyup-SPACE", () => this.stopThrust());
 
-          const backBtn = this.add
-            .image(10, 10, "backIcon")
+          this.backBtn = this.add
+            .image(0, 0, "backIcon")
             .setOrigin(0, 0)
             .setDepth(1000)
             .setInteractive({ useHandCursor: true });
 
-          backBtn.on("pointerdown", (pointer: any, localX: any, localY: any, event: any) => {
+          this.backBtn.on("pointerdown", (pointer: any, localX: any, localY: any, event: any) => {
             event.stopPropagation();
             onExitRef.current();
             });
+
+          // Place and size everything against the canvas as it is right now…
+          this.layout();
+          // …and again whenever that changes. `scale.resize()` from React (on a
+          // window resize or a rotation) fires this, which is what keeps the
+          // HUD centred and the plane in proportion instead of laid out for a
+          // canvas that has since changed shape.
+          this.scale.on("resize", this.layout, this);
+          this.events.once("shutdown", () => this.scale.off("resize", this.layout, this));
 
           // This notifies React when the first frame is actually drawn
           this.events.once("postrender", () => {
@@ -192,9 +367,11 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
                 });
             }
             this.isThrusting = true;
-            const TAP_IMPULSE = -300; // ← send tap strength here (more negative = stronger tap)
+            const s = this.s;
             const body = this.plane.body as Phaser.Physics.Arcade.Body;
-            body.setVelocityY(Math.max(body.velocity.y + TAP_IMPULSE, -420));
+            body.setVelocityY(
+              Math.max(body.velocity.y + BASE.tapImpulse * s, BASE.maxRiseSpeed * s)
+            );
         }
 
         stopThrust() {
@@ -219,22 +396,26 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
         spawnObstacle() {
           if (this.isGameOver) return;
 
-          const OBS_MARGIN_RIGHT = 60
-          const speed = 160; // px/sec — obstacle travel speed, separate from cloud speed
+          const s = this.s;
+          const OBS_MARGIN_RIGHT = BASE.obstacleMarginRight * s;
+          const speed = BASE.obstacleSpeed * s; // px/sec — separate from cloud speed
           const isTop = Phaser.Math.Between(0, 1) === 0;
 
           // Fixed distance in from whichever edge it's anchored to — tweak
           // these two if obstacles should sit closer to/further from the
           // top and bottom edges of the play area.
           const EDGE_OFFSET = 1;
-          const y = isTop ? EDGE_OFFSET : height - EDGE_OFFSET;
+          const y = isTop ? EDGE_OFFSET : this.H - EDGE_OFFSET;
 
-          const obs = this.obstacles.create(width + OBS_MARGIN_RIGHT, y, "obs") as Phaser.Physics.Arcade.Sprite;
+          const obs = this.obstacles.create(this.W + OBS_MARGIN_RIGHT, y, "obs") as Phaser.Physics.Arcade.Sprite;
           (obs as any).scored = false;
           obs.setOrigin(0.5, isTop ? 0 : 1); // anchor from the edge it's spawned against
           obs.setFlipY(isTop); // mirror vertically only when hanging from the top
           obs.setDepth(2); // above clouds (-1) and below the debug overlay (999), same layer as the plane
-          obs.setScale(0.4); // 20% smaller than the previous 0.5
+          // Scaled with everything else, so the gap it leaves the plane is
+          // always the same FRACTION of the play area's height — the difficulty
+          // is a proportion, not a pixel count.
+          obs.setScale(BASE.obstacleScale * s);
 
           const body = obs.body as Phaser.Physics.Arcade.Body;
           body.setAllowGravity(false);
@@ -247,7 +428,7 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
           // flat guess. This guarantees it always survives long enough to
           // reach the left edge naturally, on any canvas width, no matter
           // how slow `speed` is set to.
-          const travelDistance = width + OBS_MARGIN_RIGHT + 100;
+          const travelDistance = this.W + OBS_MARGIN_RIGHT + Math.abs(BASE.obstacleDespawnX * s);
           const safetyMs = (travelDistance / speed) * 1000 + 1000; // +1s buffer
           this.time.delayedCall(safetyMs, () => {
             if (obs.active) obs.destroy();
@@ -255,25 +436,26 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
         }
 
         spawnCloud() {
+          const s = this.s;
           const key = Phaser.Math.Between(0, 1) === 0 ? "cloud1" : "cloud2";
           const y = Phaser.Math.Between(this.cloudSpawnY.min, this.cloudSpawnY.max);
-          const scale = Phaser.Math.FloatBetween(0.1, 0.2);
-          const speed = Phaser.Math.Between(70, 71); // px/sec, randomized so clouds don't all move in lockstep
+          const scale = Phaser.Math.FloatBetween(0.1, 0.2) * s;
+          const speed = Phaser.Math.Between(BASE.cloudSpeedMin, BASE.cloudSpeedMax) * s;
 
           // How far off each edge clouds spawn/despawn — widen these to
           // push the cloud lane further left and right beyond the visible
           // canvas. Kept as shared constants so the debug box below always
           // matches the actual travel distance.
-          const MARGIN_RIGHT = 150; // ← was 60
-          const MARGIN_LEFT = 150;  // ← was 60
+          const MARGIN_RIGHT = BASE.cloudMargin * s;
+          const MARGIN_LEFT = BASE.cloudMargin * s;
 
-          const cloud = this.add.image(width + MARGIN_RIGHT, y, key);
+          const cloud = this.add.image(this.W + MARGIN_RIGHT, y, key);
           cloud.setScale(scale);
           cloud.setDepth(-1); // behind the plane and everything else
           cloud.setAlpha(0.4);
           this.clouds.add(cloud);
 
-          const distance = width + MARGIN_RIGHT + MARGIN_LEFT;
+          const distance = this.W + MARGIN_RIGHT + MARGIN_LEFT;
           const durationMs = (distance / speed) * 1000;
           const GAP_AFTER_MS = 1000; // ← pause after one cloud finishes before the next spawns
 
@@ -313,17 +495,19 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
                 }
               }
 
-              if (o.x < -100) o.destroy();
+              if (o.x < BASE.obstacleDespawnX * this.s) o.destroy();
             });
 
             if (!this.isStarted || this.isGameOver) return;
 
             const body = this.plane.body as Phaser.Physics.Arcade.Body;
-            // dt in seconds, so THRUST_ACCEL is tunable in px/sec² just like
-            // world gravity (1000) — bump this number up/down to make
-            // holding feel stronger/weaker relative to gravity.
-            const THRUST_ACCEL = 1800;
-            const MAX_RISE_SPEED = -420; // most negative (upward) velocity allowed
+            // dt in seconds, so thrust is tunable in px/sec² just like world
+            // gravity — both live in BASE and both are multiplied by the same
+            // scale, which is what keeps the plane's arc identical in shape and
+            // duration however large the canvas is.
+            const s = this.s;
+            const THRUST_ACCEL = BASE.thrustAccel * s;
+            const MAX_RISE_SPEED = BASE.maxRiseSpeed * s; // most negative (upward) velocity allowed
 
             if (this.isThrusting) {
                 const dt = delta / 1000;
@@ -338,7 +522,16 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
             // the smooth, springy rotation feel rather than a snappy flap.
             const ROTATION_FACTOR = 0.05; // ← how many degrees per px/sec of velocity — raise for more dramatic tilt
             const MAX_ANGLE = 30; // ← clamp so it can't rotate past a sane nose-up/down extreme
-            const targetAngle = Phaser.Math.Clamp(body.velocity.y * ROTATION_FACTOR, -MAX_ANGLE, MAX_ANGLE);
+            /* An angle is not a length, so it must NOT scale — but the velocity
+               it is derived from now does. Dividing the scale back out is what
+               keeps the tilt identical: on a quarter-size canvas the plane
+               moves at a quarter of the speed, and without this it would fly
+               almost perfectly level all the way down. */
+            const targetAngle = Phaser.Math.Clamp(
+              (body.velocity.y / s) * ROTATION_FACTOR,
+              -MAX_ANGLE,
+              MAX_ANGLE
+            );
 
             // Still smoothed (not instant) so it doesn't visually snap frame
             // to frame — this is the "damping" the writeup mentions, applied
@@ -354,12 +547,21 @@ export default function GameCanvas({ width, height, startFrame = 0, onExit, onRe
         width,
         height,
         transparent: true,
-        physics: { 
-          default: "arcade", 
-          arcade: { 
-            gravity: { x: 0, y: 1000 }, 
+        scale: {
+          // React owns the size (it measures the torn frame and calls
+          // scale.resize), so Phaser must not also try to fit the parent —
+          // the two would fight over the same canvas.
+          mode: Phaser.Scale.NONE,
+          autoCenter: Phaser.Scale.NO_CENTER,
+        },
+        // The starting gravity; layout() rescales it to the real canvas size as
+        // soon as the scene is up, and again on every resize.
+        physics: {
+          default: "arcade",
+          arcade: {
+            gravity: { x: 0, y: BASE.gravity },
             debug: false
-          } 
+          }
         },
         scene: MainScene,
       });

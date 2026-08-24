@@ -93,8 +93,8 @@ export default function Contact() {
   return (
     <section
       id="contact"
-      className="relative flex flex-col justify-center"
-      style={{ minHeight: "100vh", padding: "clamp(5.5rem, 10vh, 7rem) 6% 2rem" }}
+      className="section-screen relative flex flex-col justify-center"
+      style={{ padding: "var(--section-top) 6% 2rem" }}
     >
       <SectionSky seed={4} fireflies={18} />
       {/* Torn-paper edge for the form card — a milder version of the Skills
@@ -114,25 +114,28 @@ export default function Contact() {
         </defs>
       </svg>
       <div className="w-full mx-auto" style={{ maxWidth: "1100px" }}>
-        <div className="grid md:grid-cols-2 gap-12 lg:gap-20 items-start">
+        <div className="grid md:grid-cols-2 gap-8 sm:gap-12 lg:gap-20 items-start">
           {/* Left — pitch, details, socials */}
           <div>
-            <p className="text-sm uppercase tracking-widest text-gray-400 mb-3">Get In Touch</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+            <p className="text-xs sm:text-sm uppercase tracking-widest text-gray-400 mb-2 sm:mb-3">Get In Touch</p>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4 sm:mb-6 leading-tight">
               Let&apos;s Work Together
             </h2>
-            <p className="text-gray-600 leading-relaxed mb-8" style={{ maxWidth: "44ch" }}>
+            <p className="text-sm sm:text-base text-gray-600 leading-relaxed mb-6 sm:mb-8" style={{ maxWidth: "44ch" }}>
               I&apos;m currently open to new opportunities — a project, a role, or just a
               conversation. My inbox is always open.
             </p>
 
-            <div className="space-y-3 mb-10 text-sm">
-              <a href={`mailto:${EMAIL}`} className="flex items-center gap-4 w-fit group">
-                <span className="uppercase tracking-wider text-xs text-gray-400 w-16">Email</span>
-                <span className="text-gray-800 group-hover:underline underline-offset-4">{EMAIL}</span>
+            {/* `flex-wrap` + `break-all`: the address is 26 characters with no
+                spaces in it, and on a 320px screen a nowrap row would push the
+                whole page sideways. */}
+            <div className="space-y-3 mb-8 sm:mb-10 text-xs sm:text-sm">
+              <a href={`mailto:${EMAIL}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 w-fit group">
+                <span className="uppercase tracking-wider text-xs text-gray-400 w-16 shrink-0">Email</span>
+                <span className="text-gray-800 group-hover:underline underline-offset-4 break-all">{EMAIL}</span>
               </a>
-              <div className="flex items-center gap-4">
-                <span className="uppercase tracking-wider text-xs text-gray-400 w-16">Where</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="uppercase tracking-wider text-xs text-gray-400 w-16 shrink-0">Where</span>
                 <span className="text-gray-800">San Luis, Aurora</span>
               </div>
             </div>
@@ -154,7 +157,7 @@ export default function Contact() {
                       alt={s.label}
                       width={56}
                       height={56}
-                      className="w-14 h-14 object-contain"
+                      className="w-12 h-12 sm:w-14 sm:h-14 object-contain"
                       style={{ filter: "drop-shadow(0 5px 10px rgba(0,0,0,0.18))" }}
                       draggable={false}
                     />
@@ -165,7 +168,11 @@ export default function Contact() {
           </div>
 
           {/* Right — the note (a sheet of paper on the desk) */}
-          <form onSubmit={handleSubmit} className="relative" style={{ padding: "2.4rem 2.2rem" }}>
+          <form
+            onSubmit={handleSubmit}
+            className="relative"
+            style={{ padding: "clamp(1.4rem, 5vw, 2.4rem) clamp(1.2rem, 4.5vw, 2.2rem)" }}
+          >
             {/* Torn-paper backing — colour, texture and ragged edge live here so
                 the fields on the layer above stay crisp (same trick as the cards). */}
             <div
