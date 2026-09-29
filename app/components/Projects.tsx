@@ -57,7 +57,7 @@ const projects: Project[] = [
     tech: ["Laravel", "Livewire", "MySQL"],
     image: "/projects/nlah.jpg",
     color: "#C4E8C2",
-    links: [{ label: "Visit Website", url: "https://nlah.leuvhano.fun" }],
+    links: [{ label: "Visit Website", url: "https://www.nlahospital.com/" }],
   },
   {
     number: "04",
