@@ -12,6 +12,7 @@ type Project = {
   /* Screenshots fill the frame. Line art (the site's own favicon) has to sit
      inside it instead, or it just gets cropped into an unreadable blob. */
   imageFit?: "cover" | "contain";
+  imagePadding?: string;
   color: string; // sticky-note background
   // A link with no url is a status marker ("Work In Progress"), not a dead link.
   links: { label: string; url?: string }[];
@@ -53,7 +54,7 @@ const projects: Project[] = [
     number: "03",
     title: "Northern Luzon Adventist Hospital's Management Information System",
     description:
-      "A real hospital MIS built during my internship, an all-in-one platform.",
+      "A real hospital Management Information System built during my internship, an all-in-one platform.",
     tech: ["Laravel", "Livewire", "MySQL"],
     image: "/projects/nlah.jpg",
     color: "#C4E8C2",
@@ -138,6 +139,21 @@ const projects: Project[] = [
         url:"https://drive.google.com/file/d/1eyZUZPIIlNU5J26tSquvAwX7EcVu-xXd/view?usp=drive_link"
       }],
   },
+  {
+    number: "10",
+    title: "Axie Infinity: Tales of Kotaro",
+    description:
+      "My Axie Vibeathon prototype entry: explore dungeons, solve puzzles, and help Kotaro restore Atia.",
+    tech: ["React", "Phaser", "JavaScript", "Vercel"],
+    image: "/projects/tales-of-kotaro.png",
+    imageFit: "contain",
+    imagePadding: "0",
+    color: "#C8DCEF",
+    links: [
+      { label: "Play Game", url: "https://axie-infinity-tales-of-kotaro.vercel.app/" },
+      { label: "View Source", url: "https://github.com/Etlil/Axie-Infinity-Tales-of-Kotaro" },
+    ],
+  },
 ];
 
 // Map a tech/tool name to its icon in /public/skills. Falls back to a text
@@ -174,14 +190,14 @@ const TECH_ICON: Record<string, string> = {
 };
 
 /* The card's DESIGN size. Every number inside a card — the padding, the type
-   sizes, the 30px tech icons — is drawn against these two, and the whole stack
+   sizes, the 38px tech icons — is drawn against these two, and the whole stack
    is then scaled as one to fit whatever room the pinned stage actually has (see
    `fit` below). That is why these stay constant: they are the unit the artwork
    is drawn in, not a measurement of the screen. */
-const CARD_W = 280;
-const CARD_H = 460;
+const CARD_W = 360;
+const CARD_H = 540;
 const BASE_OFFSET_X = 215;
-const BASE_OFFSET_Y = 18;
+const BASE_OFFSET_Y = 10;
 
 /* Below this the fanned-out layout has nowhere to fan to, and the cards stack
    vertically instead. Measured against the stage, not the window, so it is the
@@ -270,13 +286,13 @@ export default function Projects() {
          as well.
 
      The height half is what was missing before, and it bites long before a
-     phone does: nine cards at 18px of vertical offset stand 604px tall, and a
+     phone does: a taller stack can exceed the available height, and a
      laptop pinned stage has roughly 500px to give once the navbar and the
      section heading have taken their share — so the bottom of every card was
      being clipped on exactly the machine most people would look at this on.
 
      Scaling rather than re-laying-out is deliberate: a card is a drawing, with
-     a photo, a title, a row of 30px tool icons and two links all sized against
+     a photo, a title, a row of 38px tool icons and two links all sized against
      each other. Shrinking the box and letting the contents reflow gives nine
      different-looking cards; scaling the whole thing keeps it the same drawing,
      smaller. */
@@ -299,9 +315,9 @@ export default function Projects() {
       let offsetY: number;
       if (mobile) {
         offsetX = 0;
-        offsetY = 28;
+        offsetY = 12;
       } else {
-        // Only the offsets shrink — the card itself is a fixed 280px — so the
+        // Only the offsets shrink — the card itself is a fixed design width — so the
         // scale has to be measured against the room left *beside* that card.
         // (Scaling against the whole stack width lets it overrun on laptops,
         // and worse with every project added.)
@@ -402,7 +418,7 @@ export default function Projects() {
             width: "100%",
             flex: 1,
             minHeight: 0,
-            alignItems: isMobile ? "flex-start" : "center",
+            alignItems: "center",
           }}
         >
           {/* Outer box occupies the SCALED footprint, so the flex centering
@@ -543,7 +559,7 @@ function ProjectCard({
       )}
       {/* sticky-note: stays bright paper at night, so its ink stays dark */}
       <div
-        className="sticky-note"
+        className="sticky-note text-center"
         style={{
           backgroundColor: project.color,
           backgroundImage: "url('/paper.svg')",
@@ -551,10 +567,10 @@ function ProjectCard({
           backgroundSize: "300px 300px",
           backgroundBlendMode: "multiply",
           border: "1px solid rgba(0,0,0,0.08)",
-          padding: "1rem",
+          padding: "18px",
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
+          gap: "10px",
           boxShadow: "0 10px 30px rgba(0,0,0,0.14)",
           width: `${CARD_W}px`,
           height: `${CARD_H}px`,
@@ -562,7 +578,7 @@ function ProjectCard({
         }}
       >
         {/* Framed thumbnail with the number tag */}
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", flexShrink: 0, width: 260, maxWidth: "100%", alignSelf: "center" }}>
           <img
             src={project.image}
             alt={project.title}
@@ -570,14 +586,15 @@ function ProjectCard({
             style={{
               width: "100%",
               aspectRatio: "1 / 1",
-              objectFit: project.imageFit ?? "cover",
+              objectFit: project.imageFit ?? "contain",
               display: "block",
               border: "3px solid #fff",
+              backgroundColor: "#fff",
               boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
               // A transparent drawing needs its own paper to sit on, and room
               // to breathe inside the frame — a photo needs neither.
               ...(project.imageFit === "contain" && {
-                padding: "14%",
+                padding: project.imagePadding ?? "14%",
                 backgroundColor: "rgba(255,255,255,0.55)",
               }),
             }}
@@ -589,7 +606,7 @@ function ProjectCard({
               left: 8,
               backgroundColor: "rgba(0,0,0,0.68)",
               color: "#fff",
-              fontSize: "0.68rem",
+              fontSize: "14px",
               fontWeight: 800,
               letterSpacing: "0.05em",
               padding: "1px 7px",
@@ -600,28 +617,29 @@ function ProjectCard({
         </div>
 
         <h3
-          className="font-bold text-gray-900 leading-tight line-clamp-2"
-          style={{ fontSize: "0.98rem", marginTop: "0.15rem" }}
+          className="font-bold text-gray-900 leading-tight"
+          style={{ fontSize: "22px", marginTop: "3px", flexShrink: 0 }}
         >
           {project.title}
         </h3>
-        <p className="text-gray-700 leading-relaxed line-clamp-2" style={{ fontSize: "0.74rem" }}>
+        <p className="text-gray-700 leading-relaxed" style={{ fontSize: "16px", flexShrink: 0 }}>
           {project.description}
         </p>
 
         {/* Tools used — skill icon per tech, text chip when there's no icon */}
-        <div className="flex flex-wrap items-center gap-2 mt-auto">
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-auto">
           {project.tech.map((t) => {
             const icon = TECH_ICON[t];
             return icon ? (
-              <img
-                key={t}
-                src={`/skills/${icon}.png`}
-                alt={t}
-                title={t}
-                draggable={false}
-                style={{ width: 30, height: 30, objectFit: "contain" }}
-              />
+              <button key={t} type="button" className="project-tech" aria-label={t}>
+                <img
+                  src={`/skills/${icon}.png`}
+                  alt=""
+                  draggable={false}
+                  style={{ width: 38, height: 38, objectFit: "contain" }}
+                />
+                <span className="project-tech__label" aria-hidden="true">{t}</span>
+              </button>
             ) : (
               <span
                 key={t}
@@ -629,7 +647,7 @@ function ProjectCard({
                 style={{
                   border: "1px solid rgba(0,0,0,0.22)",
                   backgroundColor: "rgba(255,255,255,0.4)",
-                  fontSize: "0.6rem",
+                  fontSize: "13px",
                 }}
               >
                 {t}
@@ -639,7 +657,7 @@ function ProjectCard({
         </div>
 
         {project.links.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
             {project.links.map((l) =>
               l.url ? (
                 <a
@@ -648,7 +666,7 @@ function ProjectCard({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="uppercase tracking-widest text-gray-800 underline underline-offset-2 hover:text-black transition-colors"
-                  style={{ fontSize: "0.64rem", fontWeight: 600 }}
+                  style={{ fontSize: "13px", fontWeight: 600 }}
                 >
                   {l.label} ↗
                 </a>
@@ -658,7 +676,7 @@ function ProjectCard({
                 <span
                   key={l.label}
                   className="uppercase tracking-widest text-gray-600"
-                  style={{ fontSize: "0.64rem", fontWeight: 600 }}
+                  style={{ fontSize: "13px", fontWeight: 600 }}
                 >
                   {l.label}
                 </span>
