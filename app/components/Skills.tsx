@@ -45,6 +45,7 @@ const groups: Group[] = [
       { file: "github", label: "GitHub" },
       { file: "vercel", label: "Vercel" },
       { file: "claude", label: "Claude Code" },
+      { file: "codex", label: "Codex" },
       { file: "ps", label: "Photoshop" },
       { file: "pr", label: "Premiere Pro" },
       { file: "id", label: "InDesign" },

@@ -105,7 +105,7 @@ const projects: Project[] = [
     title: "Hand-Drawn Portfolio (This Very Site)",
     description:
       "The one you're looking at, a paper-and-pencil portfolio, built with Claude Code as my pair.",
-    tech: ["Next.js", "TypeScript", "Tailwind CSS", "Phaser", "Vercel", "Claude Code"],
+    tech: ["Next.js", "TypeScript", "Tailwind CSS", "Phaser", "Vercel", "Claude Code", "Codex"],
     image: "/icon.svg", // the site's own favicon, served by app/icon.svg
     imageFit: "contain",
     color: "#B7E4E0",
@@ -159,7 +159,7 @@ const projects: Project[] = [
     title: "Hum: Your Voice, Your Studio",
     description:
       "An offline multitrack studio that turns humming into music, with projects saved locally.",
-    tech: ["React", "JavaScript", "IndexedDB", "Vercel"],
+    tech: ["React", "JavaScript", "IndexedDB", "Vercel", "Codex"],
     image: "/projects/hum.png",
     imageFit: "contain",
     imagePadding: "0",
@@ -201,6 +201,7 @@ const TECH_ICON: Record<string, string> = {
   GitHub: "github",
   Vercel: "vercel",
   "Claude Code": "claude",
+  Codex: "codex",
 };
 
 /* The card's DESIGN size. Every number inside a card — the padding, the type
