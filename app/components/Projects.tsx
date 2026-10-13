@@ -144,7 +144,7 @@ const projects: Project[] = [
     title: "Axie Infinity: Tales of Kotaro",
     description:
       "My Axie Vibeathon prototype entry: explore dungeons, solve puzzles, and help Kotaro restore Atia.",
-    tech: ["React", "Phaser", "JavaScript", "Vercel"],
+    tech: ["React", "Phaser", "JavaScript", "Vercel", "Codex"],
     image: "/projects/tales-of-kotaro.png",
     imageFit: "contain",
     imagePadding: "0",
