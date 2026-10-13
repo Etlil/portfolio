@@ -154,6 +154,20 @@ const projects: Project[] = [
       { label: "View Source", url: "https://github.com/Etlil/Axie-Infinity-Tales-of-Kotaro" },
     ],
   },
+  {
+    number: "11",
+    title: "Hum: Your Voice, Your Studio",
+    description:
+      "An offline multitrack studio that turns humming into music, with projects saved locally.",
+    tech: ["React", "JavaScript", "IndexedDB", "Vercel"],
+    image: "/projects/hum.png",
+    imageFit: "contain",
+    imagePadding: "0",
+    color: "#F7D6A2",
+    links: [
+      { label: "Open Studio", url: "https://yourbeat.vercel.app/" },
+    ],
+  },
 ];
 
 // Map a tech/tool name to its icon in /public/skills. Falls back to a text
