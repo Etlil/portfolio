@@ -519,7 +519,7 @@ export default function Skills() {
         height: pinned ? `calc(var(--svh) * 100 + ${maxShift * SCROLL_RUNWAY}px)` : "auto",
       }}
     >
-      <SectionSky seed={3} birds={5} stars={11} freeze />
+      <SectionSky seed={3} birds={0} stars={11} freeze />
       {/* Torn-paper edge for the hover labels — referenced from CSS via
           filter: url(#paper-tear). Displacing the label's paper backing with
           fractal noise rips its edges instead of a clean rectangle. */}
