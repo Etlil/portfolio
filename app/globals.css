@@ -249,25 +249,10 @@ body.game-returning #main-content {
 }
 
 /* ── SKILLS ICON BOARD ── */
-/* Card = a torn scrap of light-gray paper. The colour, texture and torn edge
-   live on a ::before backing so the card's content (heading, icons) stays
-   undistorted by the displacement filter. */
+/* Skill groups sit directly on the page; the logos carry their own shadows. */
 .skill-card {
   position: relative;
 }
-.skill-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-color: var(--card-paper);
-  background-image: url("/paper.svg");
-  background-repeat: repeat;
-  background-size: 340px 340px;
-  filter: url(#card-tear) drop-shadow(0 0 12px rgba(0, 0, 0, 0.17))
-    drop-shadow(0 12px 26px rgba(0, 0, 0, 0.18));
-}
-
 .skill-board {
   position: relative;
   flex: 1;
@@ -280,7 +265,7 @@ body.game-returning #main-content {
 }
 
 /* ── SKILLS, SIZED TO THE SCREEN ──
-   The card is a torn scrap of paper whose proportions have to survive from a
+   The skill group keeps its proportions from a
    360px phone to a 1920px desktop. Everything that decides how much room the
    icons get is expressed here rather than inline, so one media query can retune
    the whole board.
@@ -381,7 +366,7 @@ body.game-returning #main-content {
   object-fit: contain;
   display: block;
   user-select: none;
-  filter: grayscale(1) brightness(1.05);
+  filter: grayscale(1) brightness(1.05) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.22));
   transition: filter 0.55s ease;
 }
 .skill-chip.is-lit .skill-img {
@@ -683,7 +668,7 @@ body.game-active .amb-dark { opacity: 0; }
   .skill-chip:hover .skill-label { opacity: 0; }
   .skill-chip:hover .skill-icon { transform: rotate(var(--rot, 0deg)); }
   .skill-chip:hover .skill-img {
-    filter: grayscale(1) brightness(1.05);
+    filter: grayscale(1) brightness(1.05) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.22));
   }
   .skill-chip.is-lit:hover .skill-img {
     filter: grayscale(0) brightness(1) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.18));
