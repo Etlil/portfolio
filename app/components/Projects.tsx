@@ -182,6 +182,7 @@ const TECH_ICON: Record<string, string> = {
   Kotlin: "kotlin",
   Java: "java",
   SQLite: "sqlite",
+  IndexedDB: "indexeddb",
   Phaser: "phaser",
   "Next.js": "nextjs",
   React: "react",

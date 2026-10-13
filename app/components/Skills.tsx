@@ -36,6 +36,7 @@ const groups: Group[] = [
       { file: "postgre", label: "PostgreSQL" },
       { file: "mongodb", label: "MongoDB" },
       { file: "sqlite", label: "SQLite" },
+      { file: "indexeddb", label: "IndexedDB" },
     ],
   },
   {
